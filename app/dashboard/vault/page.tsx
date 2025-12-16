@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { 
@@ -35,14 +35,14 @@ import {
 import { onAuthStateChanged } from "firebase/auth";
 import { cn, formatDate } from "@/lib/utils";
 
-// --- HELPERS (Sama seperti sebelumnya) ---
+// --- HELPERS ---
 const getCategoryIcon = (category: AccountCategory) => {
   switch (category) {
     case "GAME": return <Gamepad2 size={20} className="text-purple-500" />;
     case "FINANCE": return <Wallet size={20} className="text-emerald-500" />;
     case "SOCIAL": return <Share2 size={20} className="text-blue-500" />;
     case "WORK": return <Briefcase size={20} className="text-slate-500" />;
-    case "UTILITY": return <Mail size={20} className="text-orange-500" />;
+    case "UTILITY": return <Mail size={20} className="text-orange-600" />;
     case "ENTERTAINMENT": return <Music size={20} className="text-pink-500" />;
     default: return <Lock size={20} className="text-gray-500" />;
   }
@@ -58,7 +58,8 @@ const CATEGORIES: { label: string; value: AccountCategory | "ALL" }[] = [
   { label: "Hiburan", value: "ENTERTAINMENT" },
 ];
 
-export default function VaultPage() {
+// --- KOMPONEN LOGIKA UTAMA (DIPISAH) ---
+function VaultContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const ownerFilter = searchParams.get("owner");
@@ -71,7 +72,7 @@ export default function VaultPage() {
 
   // --- STATE BARU: DROPDOWN & DELETE MODAL ---
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Account | null>(null); // Akun yang mau dihapus
+  const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
 
   // 1. Cek Login
   useEffect(() => {
@@ -356,5 +357,14 @@ export default function VaultPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// --- PEMBUNGKUS UTAMA UNTUK MENGHINDARI ERROR BUILD ---
+export default function VaultPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-500" size={32} /></div>}>
+      <VaultContent />
+    </Suspense>
   );
 }
