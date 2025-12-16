@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { collection, query, onSnapshot, orderBy } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { Account, AccountCategory } from "@/lib/types/schema";
 import { 
   Network, 
-  ArrowRight, 
   Gamepad2, 
   Wallet, 
   Share2, 
@@ -16,24 +15,40 @@ import {
   Lock,
   Globe,
   Smartphone,
-  Loader2
+  Cpu,
+  Terminal,
+  Activity,
+  Shield,
+  Wifi,
+  Search
 } from "lucide-react";
 import { onAuthStateChanged } from "firebase/auth";
 
-// Helper Icon Kategori (Kita reuse biar konsisten)
-const getCategoryIcon = (category: AccountCategory) => {
+// --- THEME CONFIG ---
+const THEME = {
+  bg: "bg-slate-950",
+  panel: "bg-slate-900/50",
+  border: "border-slate-800",
+  accent: "text-cyan-400",
+  accentBorder: "border-cyan-500/30",
+  textMain: "text-slate-200",
+  textDim: "text-slate-500",
+  success: "text-emerald-400",
+};
+
+// Helper Icon Kategori
+const getCategoryIcon = (category: AccountCategory, size = 16) => {
   switch (category) {
-    case "GAME": return <Gamepad2 size={16} className="text-purple-600" />;
-    case "FINANCE": return <Wallet size={16} className="text-emerald-600" />;
-    case "SOCIAL": return <Share2 size={16} className="text-blue-600" />;
-    case "WORK": return <Briefcase size={16} className="text-slate-600" />;
-    case "UTILITY": return <Mail size={16} className="text-orange-600" />;
-    case "ENTERTAINMENT": return <Music size={16} className="text-pink-600" />;
-    default: return <Lock size={16} className="text-gray-600" />;
+    case "GAME": return <Gamepad2 size={size} className="text-purple-400" />;
+    case "FINANCE": return <Wallet size={size} className="text-emerald-400" />;
+    case "SOCIAL": return <Share2 size={size} className="text-blue-400" />;
+    case "WORK": return <Briefcase size={size} className="text-amber-400" />;
+    case "UTILITY": return <Mail size={size} className="text-orange-400" />;
+    case "ENTERTAINMENT": return <Music size={size} className="text-pink-400" />;
+    default: return <Lock size={size} className="text-slate-400" />;
   }
 };
 
-// Tipe Data untuk Grouping
 interface EmailGroup {
   email: string;
   apps: Account[];
@@ -43,9 +58,17 @@ export default function ConnectivityPage() {
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<EmailGroup[]>([]);
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
+  
+  // State untuk animasi scanning
+  const [scanProgress, setScanProgress] = useState(0);
 
   // Fetch Data
   useEffect(() => {
+    // Simulasi scanning effect
+    const scanInterval = setInterval(() => {
+        setScanProgress(prev => (prev >= 100 ? 0 : prev + 1));
+    }, 50);
+
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (!user) return;
 
@@ -57,33 +80,23 @@ export default function ConnectivityPage() {
           ...doc.data()
         })) as Account[];
 
-        // LOGIKA PENGELOMPOKAN (CORE LOGIC)
-        // 1. Cari semua email unik yang dipakai sebagai "linkedEmail"
         const linkedEmails = new Set<string>();
         allAccounts.forEach(acc => {
           if (acc.linkedEmail) linkedEmails.add(acc.linkedEmail.toLowerCase().trim());
         });
 
-        // 2. Buat struktur grup
         const groupedData: EmailGroup[] = [];
         linkedEmails.forEach(email => {
           const connectedApps = allAccounts.filter(
             acc => acc.linkedEmail?.toLowerCase().trim() === email
           );
-          
           if (connectedApps.length > 0) {
-            groupedData.push({
-              email: email,
-              apps: connectedApps
-            });
+            groupedData.push({ email, apps: connectedApps });
           }
         });
 
-        // Sort by jumlah aplikasi terbanyak
         groupedData.sort((a, b) => b.apps.length - a.apps.length);
-
         setGroups(groupedData);
-        // Default pilih email pertama jika ada
         if (!selectedEmail && groupedData.length > 0) {
           setSelectedEmail(groupedData[0].email);
         }
@@ -93,126 +106,265 @@ export default function ConnectivityPage() {
       return () => unsubscribeSnapshot();
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+        unsubscribeAuth();
+        clearInterval(scanInterval);
+    };
   }, [selectedEmail]);
 
-  // Cari grup yang sedang dipilih
   const activeGroup = groups.find(g => g.email === selectedEmail);
 
+  // --- LOADING SCREEN (TERMINAL STYLE) ---
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="animate-spin text-blue-500" size={32} />
+      <div className={`flex flex-col items-center justify-center h-[80vh] ${THEME.bg} font-mono`}>
+        <div className="w-96 space-y-4">
+            <div className="flex justify-between text-xs text-cyan-500 mb-1">
+                <span>SYSTEM_INIT</span>
+                <span>{scanProgress}%</span>
+            </div>
+            <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+                <div 
+                    className="h-full bg-cyan-500 transition-all duration-75 ease-out shadow-[0_0_10px_rgba(6,182,212,0.8)]" 
+                    style={{ width: `${scanProgress}%` }}
+                />
+            </div>
+            <div className="text-xs text-slate-500 space-y-1">
+                <p>{'>'} Detecting nodes...</p>
+                <p>{'>'} Encrypting connection...</p>
+                <p>{'>'} Fetching topology map...</p>
+            </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="p-3 bg-indigo-100 rounded-full">
-          <Network className="text-indigo-600" size={24} />
+    <div className={`min-h-[85vh] ${THEME.bg} text-slate-200 p-6 rounded-xl border ${THEME.border} shadow-2xl font-mono overflow-hidden flex flex-col`}>
+      
+      {/* HEADER: STATUS BAR */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 border-b border-slate-800 pb-4">
+        <div className="flex items-center gap-4">
+            <div className="p-3 bg-cyan-950/30 border border-cyan-500/20 rounded-lg animate-pulse">
+                <Network className="text-cyan-400" size={24} />
+            </div>
+            <div>
+                <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    NET_VISUALIZER <span className="text-xs px-2 py-0.5 rounded bg-cyan-900/50 text-cyan-300 border border-cyan-800">v2.0</span>
+                </h1>
+                <p className="text-xs text-slate-500 mt-1">SECURE CONNECTION ESTABLISHED</p>
+            </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Peta Konektivitas</h1>
-          <p className="text-slate-500 text-sm">Lihat aplikasi apa saja yang terhubung ke email utama Anda.</p>
+        <div className="flex gap-4 text-xs">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                <span className="text-emerald-400">ONLINE</span>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800">
+                <Wifi size={14} className="text-cyan-400" />
+                <span className="text-slate-400">{groups.length} HUBS DETECTED</span>
+            </div>
         </div>
       </div>
 
-      {groups.length === 0 ? (
-        <div className="bg-white p-10 rounded-xl border border-dashed border-slate-300 text-center">
-          <p className="text-slate-500">Belum ada data relasi.</p>
-          <p className="text-sm text-slate-400 mt-2">
-            Pastikan Anda mengisi kolom <strong>"Terhubung dengan Email"</strong> saat menambah akun.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* KOLOM KIRI: Daftar Email Induk */}
-          <div className="lg:col-span-1 space-y-3">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">
-              Akun Induk (Email)
-            </h3>
-            {groups.map((group) => (
-              <button
-                key={group.email}
-                onClick={() => setSelectedEmail(group.email)}
-                className={`w-full text-left p-4 rounded-xl border transition-all flex items-center justify-between group ${
-                  selectedEmail === group.email
-                    ? "bg-indigo-50 border-indigo-200 shadow-sm ring-1 ring-indigo-200"
-                    : "bg-white border-slate-200 hover:border-indigo-200 hover:bg-slate-50"
-                }`}
-              >
-                <div className="min-w-0">
-                  <p className={`font-medium truncate ${selectedEmail === group.email ? "text-indigo-900" : "text-slate-700"}`}>
-                    {group.email}
-                  </p>
-                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                    <Globe size={12} />
-                    {group.apps.length} Aplikasi Terhubung
-                  </p>
+      <div className="flex flex-col lg:flex-row gap-6 flex-1">
+        
+        {/* LEFT PANEL: NODE SELECTOR */}
+        <div className="w-full lg:w-80 flex flex-col gap-4">
+            <div className={`p-4 rounded-lg border ${THEME.border} ${THEME.panel}`}>
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">
+                    <Search size={14} />
+                    Signal Sources
                 </div>
-                {selectedEmail === group.email && (
-                  <ArrowRight size={16} className="text-indigo-500" />
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* KOLOM KANAN: Detail Aplikasi Terhubung */}
-          <div className="lg:col-span-2">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">
-              Aplikasi Terhubung ke: <span className="text-indigo-600 normal-case">{selectedEmail}</span>
-            </h3>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {activeGroup?.apps.map((app) => (
-                <div key={app.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-start gap-3 hover:shadow-md transition-shadow relative overflow-hidden">
-                  
-                  {/* Decorative Stripe */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-1 ${
-                    app.category === 'GAME' ? 'bg-purple-500' : 
-                    app.category === 'FINANCE' ? 'bg-emerald-500' : 'bg-blue-500'
-                  }`} />
-
-                  <div className="p-2 bg-slate-50 rounded-lg">
-                    {getCategoryIcon(app.category)}
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start">
-                      <h4 className="font-semibold text-slate-900 truncate">{app.serviceName}</h4>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded border border-slate-200">
-                        {app.category}
-                      </span>
-                    </div>
-                    
-                    <p className="text-sm text-slate-600 mt-1 truncate font-mono bg-slate-50 inline-block px-1 rounded">
-                      {app.identifier}
-                    </p>
-
-                    {/* Detail Tambahan Jika Ada */}
-                    {app.category === "GAME" && (app.details as any)?.ign && (
-                      <div className="flex items-center gap-1 mt-2 text-xs text-purple-600">
-                        <Gamepad2 size={12} />
-                        IGN: {(app.details as any).ign}
-                      </div>
-                    )}
-                    {app.category === "SOCIAL" && (app.details as any)?.phoneLinked && (
-                      <div className="flex items-center gap-1 mt-2 text-xs text-blue-600">
-                        <Smartphone size={12} />
-                        HP: {(app.details as any).phoneLinked}
-                      </div>
-                    )}
-                  </div>
+                <div className="space-y-1 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                    {groups.length === 0 ? (
+                        <div className="text-xs text-slate-600 text-center py-4 border border-dashed border-slate-800 rounded">
+                            NO_SIGNAL
+                        </div>
+                    ) : groups.map((group) => (
+                        <button
+                            key={group.email}
+                            onClick={() => setSelectedEmail(group.email)}
+                            className={`w-full text-left p-3 rounded border text-xs transition-all flex items-center justify-between group ${
+                                selectedEmail === group.email
+                                    ? "bg-cyan-950/30 border-cyan-500/50 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.1)]"
+                                    : "bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-slate-800 hover:border-slate-700"
+                            }`}
+                        >
+                            <div className="truncate flex-1 mr-2">
+                                <p className="font-bold truncate opacity-90">{group.email}</p>
+                                <p className="text-[10px] opacity-60 mt-0.5">{group.apps.length} NODES LINKED</p>
+                            </div>
+                            {selectedEmail === group.email && (
+                                <Activity size={14} className="text-cyan-400 animate-pulse" />
+                            )}
+                        </button>
+                    ))}
                 </div>
-              ))}
             </div>
-          </div>
 
+            {/* Stats Panel Kecil */}
+            {activeGroup && (
+                <div className={`p-4 rounded-lg border ${THEME.border} ${THEME.panel} flex-1`}>
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">
+                        <Terminal size={14} />
+                        Metadata
+                    </div>
+                    <div className="space-y-3 text-xs">
+                        <div className="flex justify-between border-b border-slate-800 pb-2">
+                            <span className="text-slate-500">TARGET</span>
+                            <span className="text-cyan-300 truncate max-w-[150px]" title={activeGroup.email}>{activeGroup.email}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-slate-800 pb-2">
+                            <span className="text-slate-500">TOTAL NODES</span>
+                            <span className="text-white">{activeGroup.apps.length}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-slate-500">SECURITY</span>
+                            <span className="text-emerald-400">ENCRYPTED</span>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
-      )}
+
+        {/* RIGHT PANEL: VISUALIZER (CANVAS AREA) */}
+        <div className={`flex-1 rounded-xl border ${THEME.border} bg-slate-900/80 relative overflow-hidden flex items-center justify-center min-h-[500px]`}>
+            {/* Grid Background Effect */}
+            <div className="absolute inset-0 opacity-10" 
+                 style={{ 
+                     backgroundImage: 'linear-gradient(#06b6d4 1px, transparent 1px), linear-gradient(90deg, #06b6d4 1px, transparent 1px)', 
+                     backgroundSize: '40px 40px' 
+                 }} 
+            />
+            
+            {/* Radar Scan Effect */}
+            <div className="absolute inset-0 rounded-full border border-cyan-500/5 w-[800px] h-[800px] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-[spin_10s_linear_infinite]" />
+            <div className="absolute inset-0 rounded-full border border-cyan-500/10 w-[500px] h-[500px] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+
+            {/* VISUALIZATION CONTENT */}
+            {activeGroup ? (
+                <TopologyViewer group={activeGroup} />
+            ) : (
+                <div className="flex flex-col items-center text-slate-600 animate-pulse">
+                    <Shield size={48} className="mb-4 opacity-20" />
+                    <p className="text-xs tracking-widest">WAITING FOR TARGET SELECTION...</p>
+                </div>
+            )}
+        </div>
+
+      </div>
     </div>
   );
+}
+
+// --- SUB-COMPONENT: TOPOLOGY VIEWER (THE COOL PART) ---
+function TopologyViewer({ group }: { group: EmailGroup }) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [dimensions, setDimensions] = useState({ w: 0, h: 0 });
+
+    // Update dimensions on mount/resize
+    useEffect(() => {
+        if (containerRef.current) {
+            setDimensions({
+                w: containerRef.current.clientWidth,
+                h: containerRef.current.clientHeight
+            });
+        }
+    }, [containerRef.current]);
+
+    // Calculate Positions
+    const centerX = dimensions.w / 2;
+    const centerY = dimensions.h / 2;
+    const radius = Math.min(dimensions.w, dimensions.h) / 3; // Jarak node anak dari pusat
+
+    return (
+        <div ref={containerRef} className="w-full h-full relative">
+            <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                <defs>
+                    <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.8" />
+                        <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1" />
+                    </linearGradient>
+                </defs>
+                {group.apps.map((app, index) => {
+                    const angle = (index * 2 * Math.PI) / group.apps.length; // Distribusi melingkar
+                    const x = centerX + radius * Math.cos(angle);
+                    const y = centerY + radius * Math.sin(angle);
+                    
+                    return (
+                        <g key={`link-${app.id}`}>
+                            {/* Connecting Line */}
+                            <line 
+                                x1={centerX} y1={centerY} 
+                                x2={x} y2={y} 
+                                stroke="url(#lineGradient)" 
+                                strokeWidth="1"
+                                className="opacity-50"
+                            />
+                            {/* Animated Packet */}
+                            <circle r="2" fill="#22d3ee">
+                                <animateMotion 
+                                    dur={`${2 + Math.random() * 2}s`} 
+                                    repeatCount="indefinite"
+                                    path={`M${centerX},${centerY} L${x},${y}`}
+                                />
+                            </circle>
+                        </g>
+                    );
+                })}
+            </svg>
+
+            {/* CENTER NODE (HUB) */}
+            <div 
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center group cursor-pointer"
+            >
+                <div className="w-16 h-16 rounded-full bg-slate-950 border-2 border-cyan-500 shadow-[0_0_30px_rgba(6,182,212,0.4)] flex items-center justify-center relative overflow-hidden group-hover:scale-110 transition-transform duration-300">
+                    <div className="absolute inset-0 bg-cyan-500/20 animate-pulse" />
+                    <Cpu size={32} className="text-cyan-400 relative z-10" />
+                </div>
+                <div className="mt-3 bg-slate-900/90 px-3 py-1 rounded text-[10px] text-cyan-300 border border-cyan-500/30 backdrop-blur-sm shadow-xl max-w-[200px] truncate text-center">
+                    {group.email}
+                </div>
+            </div>
+
+            {/* CHILD NODES (APPS) */}
+            {group.apps.map((app, index) => {
+                const angle = (index * 2 * Math.PI) / group.apps.length;
+                // Posisi CSS (offset dari center)
+                const top = 50 + 33 * Math.sin(angle); // 33% dari tinggi container (approx radius)
+                const left = 50 + 33 * Math.cos(angle) * (dimensions.h / dimensions.w); // Adjust aspect ratio dikit
+
+                return (
+                    <div 
+                        key={app.id}
+                        className="absolute z-10 flex flex-col items-center justify-center w-24 h-24 hover:z-30 transition-all duration-300 group/node"
+                        style={{ 
+                            top: `calc(${50 + 35 * Math.sin(angle)}% - 3rem)`, // 35% radius, -3rem untuk centering (half size)
+                            left: `calc(${50 + 35 * Math.cos(angle)}% - 3rem)` 
+                        }}
+                    >
+                        <div className={`w-10 h-10 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center shadow-lg group-hover/node:border-cyan-400 group-hover/node:shadow-[0_0_15px_rgba(34,211,238,0.5)] transition-all relative
+                            ${app.category === 'GAME' ? 'group-hover/node:border-purple-500' : ''}
+                            ${app.category === 'FINANCE' ? 'group-hover/node:border-emerald-500' : ''}
+                        `}>
+                            {getCategoryIcon(app.category, 18)}
+                            
+                            {/* Status Dot */}
+                            <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full border border-slate-900" />
+                        </div>
+                        
+                        {/* Tooltip Label */}
+                        <div className="opacity-0 group-hover/node:opacity-100 absolute top-full mt-2 transition-opacity duration-200 pointer-events-none z-40">
+                            <div className="bg-slate-900 px-3 py-2 rounded border border-slate-700 shadow-xl text-left min-w-[120px]">
+                                <p className="text-xs font-bold text-white truncate">{app.serviceName}</p>
+                                <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate max-w-[100px]">{app.identifier}</p>
+                                <p className="text-[9px] text-cyan-500 mt-1 uppercase tracking-wider">{app.category}</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
 }

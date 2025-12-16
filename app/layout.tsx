@@ -15,12 +15,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id">
-      <body className={`${inter.className} bg-slate-50 text-slate-900 min-h-screen`}>
-        {/* Kita akan tambahkan Sidebar/Navbar di sini nanti */}
-        <main className="w-full min-h-screen">
-          {children}
-        </main>
+    <html lang="id" className="dark">
+      <body className={`${inter.className} bg-slate-950 text-slate-200 min-h-screen antialiased`}>
+        {/* Sidebar SUDAH DIHAPUS DARI SINI dan dipindah ke dashboard/layout.tsx */}
+        {/* Halaman ini bersih, hanya konten (Login) yang akan tampil di root */}
+        {children}
       </body>
     </html>
   );

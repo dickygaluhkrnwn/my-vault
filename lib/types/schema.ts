@@ -35,6 +35,8 @@ export interface SocialDetails {
   username?: string;
   phoneLinked?: string;
   recoveryEmail?: string;
+  // Field tambahan untuk fleksibilitas
+  [key: string]: any; 
 }
 
 export interface StorageDetails {
@@ -66,7 +68,8 @@ export interface Account {
   status: AccountStatus;
   tags: string[];
   
-  details?: GameDetails | FinanceDetails | SocialDetails | StorageDetails;
+  // Menggunakan Union Type untuk details agar fleksibel
+  details?: GameDetails | FinanceDetails | SocialDetails | StorageDetails | any;
   
   lastUpdated: Date;
   createdAt: Date;
