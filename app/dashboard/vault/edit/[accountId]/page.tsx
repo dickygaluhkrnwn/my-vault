@@ -502,7 +502,8 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
                   </div>
                 )}
               </div>
-              <p className="text-[10px] text-slate-600 italic">*Tautkan akun ini ke akun induknya (misal: Game -> Steam, Shopee -> Google) untuk visualisasi konektivitas.</p>
+              {/* FIX: Replaced -> with &gt; to prevent syntax error */}
+              <p className="text-[10px] text-slate-600 italic">*Tautkan akun ini ke akun induknya (misal: Game -&gt; Steam, Shopee -&gt; Google) untuk visualisasi konektivitas.</p>
             </div>
           </div>
         </div>
