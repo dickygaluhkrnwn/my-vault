@@ -16,7 +16,9 @@ import {
   AlertTriangle,
   Clock,
   Zap,
+  Network
 } from "lucide-react";
+import { Account } from "@/lib/types/schema";
 
 // --- THEME CONFIG (Consistent with Connectivity Page) ---
 const THEME = {
@@ -40,10 +42,11 @@ export default function DashboardPage() {
   // Real Data State
   const [stats, setStats] = useState({
     total: 0,
-    finance: 0,
+    finance: 0, // Includes Ecommerce
     gaming: 0,
     social: 0,
-    banned: 0,
+    alerts: 0, // Banned/Suspended
+    linked: 0, // New: Connected accounts
   });
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
   
@@ -63,7 +66,7 @@ export default function DashboardPage() {
     return () => unsubscribe();
   }, [router]);
 
-  // 2. Data Listener
+  // 2. Data Listener (SMART LOGIC)
   useEffect(() => {
     if (!user) return;
 
@@ -71,27 +74,45 @@ export default function DashboardPage() {
     const q = query(collection(db, "accounts"), orderBy("lastUpdated", "desc"));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      let newStats = { total: 0, finance: 0, gaming: 0, social: 0, banned: 0 };
+      let newStats = { total: 0, finance: 0, gaming: 0, social: 0, alerts: 0, linked: 0 };
       const logs: any[] = [];
 
       newStats.total = snapshot.size;
 
       snapshot.docs.forEach((doc) => {
-        const data = doc.data();
+        const data = doc.data() as Account;
         
         // Categorization Logic
-        if (["FINANCE", "BANK"].includes(data.category)) newStats.finance++;
-        if (["GAME", "GAMING"].includes(data.category)) newStats.gaming++;
-        if (["SOCIAL"].includes(data.category)) newStats.social++;
-        if (data.status === "BANNED") newStats.banned++;
+        if (["FINANCE", "BANK", "ECOMMERCE", "WALLET"].includes(data.category)) newStats.finance++;
+        if (["GAME", "GAMING", "ENTERTAINMENT"].includes(data.category)) newStats.gaming++;
+        if (["SOCIAL", "COMMUNICATION"].includes(data.category)) newStats.social++;
+        
+        // Smart Alert: Count Banned, Suspended, or Sold as alerts
+        if (["BANNED", "SUSPENDED", "SOLD"].includes(data.status)) newStats.alerts++;
+
+        // Connectivity Logic: Hitung akun yang punya "Induk"
+        // (Punya linkedAccountId ATAU punya linkedEmail tapi login bukan via email biasa)
+        const isLinked = data.linkedAccountId || (data.linkedEmail && data.authMethod && data.authMethod !== 'email');
+        if (isLinked) newStats.linked++;
 
         // Recent Logs (Top 5)
         if (logs.length < 5) {
+            // Helper untuk konversi aman Timestamp/Date
+            const getLogDate = (val: any) => {
+                if (!val) return new Date();
+                if (val.seconds) return new Date(val.seconds * 1000); // Handle Firestore Timestamp object directly
+                if (typeof val.toDate === 'function') return val.toDate(); // Handle Firestore Timestamp class
+                return new Date(val); // Handle standard Date or string
+            };
+
+            const logDate = getLogDate(data.lastUpdated);
+
             logs.push({
                 id: doc.id,
-                action: "DATA_UPDATE",
+                // Menggunakan string comparison sederhana untuk action type
+                action: data.createdAt && data.lastUpdated && JSON.stringify(data.createdAt) === JSON.stringify(data.lastUpdated) ? "NEW_ENTRY" : "UPDATE_DATA",
                 target: data.serviceName || "UNKNOWN_NODE",
-                timestamp: data.lastUpdated?.toDate ? data.lastUpdated.toDate() : new Date(),
+                timestamp: logDate,
                 status: "SUCCESS"
             });
         }
@@ -174,34 +195,42 @@ export default function DashboardPage() {
         
         {/* LEFT COLUMN: STATS WIDGETS */}
         <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Total Assets */}
             <StatCard 
-                label="TOTAL_ASSETS" 
+                label="TOTAL_NODES" 
                 value={stats.total} 
                 icon={<Shield size={20} />} 
                 color="text-cyan-400" 
                 borderColor="border-cyan-500/30"
             />
+            
+            {/* Network Density (Smart Stat) */}
             <StatCard 
-                label="FINANCE_NODES" 
+                label="NETWORK_DENSITY" 
+                value={stats.linked} 
+                subValue={`${Math.round((stats.linked / (stats.total || 1)) * 100)}% LINKED`}
+                icon={<Network size={20} />} 
+                color="text-purple-400" 
+                borderColor="border-purple-500/30"
+            />
+
+            {/* Economy (Finance + Ecommerce) */}
+            <StatCard 
+                label="ECONOMY_SECTOR" 
                 value={stats.finance} 
                 icon={<Wallet size={20} />} 
                 color="text-emerald-400" 
                 borderColor="border-emerald-500/30"
             />
+
+            {/* Security Alerts */}
             <StatCard 
-                label="GAMING_HUBS" 
-                value={stats.gaming} 
-                icon={<Gamepad2 size={20} />} 
-                color="text-purple-400" 
-                borderColor="border-purple-500/30"
-            />
-            <StatCard 
-                label="ALERT_LEVEL" 
-                value={stats.banned} 
-                subValue={stats.banned > 0 ? "CRITICAL" : "NORMAL"}
+                label="THREAT_LEVEL" 
+                value={stats.alerts} 
+                subValue={stats.alerts > 0 ? "WARNING" : "SECURE"}
                 icon={<AlertTriangle size={20} />} 
-                color={stats.banned > 0 ? "text-red-500 animate-pulse" : "text-slate-400"} 
-                borderColor={stats.banned > 0 ? "border-red-500/50" : "border-slate-800"}
+                color={stats.alerts > 0 ? "text-red-500 animate-pulse" : "text-slate-400"} 
+                borderColor={stats.alerts > 0 ? "border-red-500/50" : "border-slate-800"}
             />
 
             {/* BIG CHART AREA (Visual Only for now) */}
@@ -277,15 +306,16 @@ export default function DashboardPage() {
                     <div className="text-slate-600 italic text-center py-4">NO_RECENT_ACTIVITY</div>
                 ) : (
                     recentLogs.map((log, idx) => (
-                        <div key={idx} className="p-3 rounded bg-slate-950 border border-slate-800 hover:border-slate-700 transition-colors">
+                        <div key={idx} className="p-3 rounded bg-slate-950 border border-slate-800 hover:border-slate-700 transition-colors group">
                             <div className="flex justify-between text-[10px] text-slate-500 mb-1">
                                 <span>{log.timestamp.toLocaleTimeString()}</span>
                                 <span className="text-emerald-500">[{log.status}]</span>
                             </div>
-                            <div className="text-cyan-300 font-bold truncate">
-                                {'>'} {log.action}
+                            <div className="text-cyan-300 font-bold truncate flex items-center gap-2">
+                                <span className="text-slate-600">{'>'}</span> 
+                                {log.action}
                             </div>
-                            <div className="text-slate-400 truncate mt-0.5">
+                            <div className="text-slate-400 truncate mt-0.5 group-hover:text-white transition-colors">
                                 TARGET: {log.target}
                             </div>
                         </div>

@@ -4,7 +4,7 @@ import { useState, useEffect, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy, collection, getDocs, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Account, AccountCategory, AccountStatus } from "@/lib/types/schema";
+import { Account, AccountCategory, AccountStatus, AuthMethod } from "@/lib/types/schema";
 import { TEMPLATES, TemplateField } from "@/lib/constants/templates";
 import { formatDate } from "@/lib/utils";
 import { 
@@ -33,7 +33,8 @@ import {
   Settings2,
   Plus,
   X,
-  Link as LinkIcon
+  Link as LinkIcon,
+  KeyRound
 } from "lucide-react";
 
 // --- THEME CONFIG ---
@@ -61,6 +62,19 @@ const CATEGORIES: { label: string; value: AccountCategory; icon: any }[] = [
   { label: "OTHER", value: "OTHER", icon: MoreHorizontal },
 ];
 
+// [BARU] Opsi Auth Method
+const AUTH_METHODS: { label: string; value: AuthMethod }[] = [
+  { label: "Email & Password", value: "email" },
+  { label: "Username & Password", value: "username" },
+  { label: "Phone Number", value: "phone" },
+  { label: "SSO: Google Account", value: "sso_google" },
+  { label: "SSO: Apple ID", value: "sso_apple" },
+  { label: "SSO: Facebook", value: "sso_facebook" },
+  { label: "SSO: Steam", value: "sso_steam" },
+  { label: "Linked / 3rd Party", value: "linked_account" },
+  { label: "Other Method", value: "other" },
+];
+
 const OWNERS = ["Dicky", "Ibu", "Ayah", "Adik", "Mase", "Keluarga"];
 
 export default function EditAccountPage({ params }: { params: Promise<{ accountId: string }> }) {
@@ -78,7 +92,9 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
     category: "SOCIAL" as AccountCategory,
     identifier: "",
     password: "",
+    authMethod: "email" as AuthMethod, // [BARU]
     linkedEmail: "",
+    linkedAccountId: "", // [BARU]
     owner: "Dicky",
     status: "ACTIVE" as AccountStatus,
     tags: "",
@@ -119,6 +135,9 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
     }
     const search = formData.linkedEmail.toLowerCase();
     const filtered = parentSuggestions.filter(acc => {
+      // Jangan tampilkan diri sendiri dalam saran parent
+      if (acc.id === accountId) return false;
+
       let typeMatch = true;
       if (parentType === "GAME") typeMatch = acc.category === "GAME";
       else if (parentType === "EMAIL") typeMatch = ["UTILITY", "SOCIAL", "WORK"].includes(acc.category);
@@ -130,7 +149,7 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
       return typeMatch && textMatch;
     });
     setFilteredParents(filtered.slice(0, 5));
-  }, [formData.linkedEmail, parentType, parentSuggestions]);
+  }, [formData.linkedEmail, parentType, parentSuggestions, accountId]);
 
   // Click Outside
   useEffect(() => {
@@ -159,7 +178,9 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
             category: category,
             identifier: data.identifier || "",
             password: data.password || "",
+            authMethod: (data.authMethod as AuthMethod) || "email", // Default ke email jika data lama
             linkedEmail: data.linkedEmail || "",
+            linkedAccountId: data.linkedAccountId || "",
             owner: data.owner || "Dicky",
             status: data.status || "ACTIVE",
             tags: data.tags ? data.tags.join(", ") : "",
@@ -167,25 +188,18 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
             gender: data.gender || ""
           });
 
-          // SMART DETECT PARENT TYPE (UPDATED: Handle Ambiguity)
+          // SMART DETECT PARENT TYPE FOR UI
           if (data.linkedEmail) {
              const qParent = query(collection(db, "accounts"), where("identifier", "==", data.linkedEmail));
              getDocs(qParent).then(snap => {
                 if (!snap.empty) {
                    const parents = snap.docs.map(d => d.data());
-                   
-                   // Cek apakah ada parent yang bertipe GAME (Steam) dan EMAIL
                    const gameParent = parents.find(p => p.category === "GAME");
                    const emailParent = parents.find(p => ["UTILITY", "SOCIAL", "WORK"].includes(p.category));
                    
-                   // Jika akun anak adalah GAME dan ada parent GAME (meski identifier sama dengan email), pilih GAME
-                   if (category === "GAME" && gameParent) {
-                      setParentType("GAME");
-                   } else if (emailParent) {
-                      setParentType("EMAIL");
-                   } else {
-                      setParentType("OTHER");
-                   }
+                   if (category === "GAME" && gameParent) setParentType("GAME");
+                   else if (emailParent) setParentType("EMAIL");
+                   else setParentType("OTHER");
                 }
              }).catch(console.error);
           }
@@ -221,11 +235,20 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    if (name === "linkedEmail") setShowSuggestions(true);
+    
+    // Reset linkedAccountId jika user edit email parent manual
+    if (name === "linkedEmail") {
+        setFormData(prev => ({ ...prev, linkedAccountId: "" }));
+        setShowSuggestions(true);
+    }
   };
 
   const selectParent = (acc: Account) => {
-    setFormData(prev => ({ ...prev, linkedEmail: acc.identifier }));
+    setFormData(prev => ({ 
+        ...prev, 
+        linkedEmail: acc.identifier, 
+        linkedAccountId: acc.id 
+    }));
     
     // Auto-switch tab based on selection logic
     if (acc.category === "GAME") setParentType("GAME");
@@ -316,6 +339,15 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
   const availableSuggestions = currentTemplateFields.filter(f => !activeTemplateKeys.includes(f.key));
   const activeFields = currentTemplateFields.filter(f => activeTemplateKeys.includes(f.key));
 
+  // Helper untuk cek apakah perlu menampilkan Parent Search
+  const shouldShowParentSearch = [
+    "linked_account", 
+    "sso_google", 
+    "sso_steam", 
+    "sso_facebook", 
+    "sso_apple"
+  ].includes(formData.authMethod);
+
   if (loading) {
     return (
       <div className={`flex h-[80vh] items-center justify-center ${THEME.bg} font-mono`}>
@@ -401,6 +433,20 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
           <div className="absolute top-0 left-0 w-1 h-full bg-purple-500/20" />
           <h3 className="text-sm font-bold text-purple-400 border-b border-slate-800 pb-2 flex items-center gap-2 uppercase tracking-wider"><Terminal size={16} /> LOGIN_CREDENTIALS</h3>
           <div className="space-y-4">
+            
+            {/* AUTH METHOD SELECTOR */}
+            <div className="space-y-1 group">
+              <label className="text-xs font-bold text-slate-500 group-focus-within:text-purple-400 transition-colors flex items-center gap-2">
+                <KeyRound size={12} /> AUTH_PROTOCOL (METHOD)
+              </label>
+              <div className="relative">
+                <select name="authMethod" value={formData.authMethod} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-purple-500/50 text-slate-300 appearance-none">
+                  {AUTH_METHODS.map(method => <option key={method.value} value={method.value}>{method.label}</option>)}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600"><ChevronRight size={14} className="rotate-90" /></div>
+              </div>
+            </div>
+
             <div className="space-y-1 group">
               <label className="text-xs font-bold text-slate-500 group-focus-within:text-purple-400 transition-colors">IDENTIFIER / USERNAME</label>
               <div className="flex items-center bg-slate-950 border border-slate-800 rounded p-2 focus-within:border-purple-500/50 transition-all"><Mail size={14} className="text-slate-600 mr-2" /><input required name="identifier" value={formData.identifier} onChange={handleInputChange} className="bg-transparent border-none outline-none w-full text-sm placeholder:text-slate-700" /></div>
@@ -411,17 +457,39 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
             </div>
 
             {/* --- SMART PARENT LINK SECTION --- */}
-            <div className="space-y-2 pt-2 border-t border-slate-800 border-dashed group relative" ref={suggestionRef}>
+            <div className={`space-y-2 pt-2 border-t border-slate-800 border-dashed group relative transition-all duration-300 ${shouldShowParentSearch ? 'opacity-100' : 'opacity-50 grayscale'}`} ref={suggestionRef}>
               <div className="flex justify-between items-end">
-                <label className="text-xs font-bold text-slate-500 flex items-center gap-2 group-focus-within:text-purple-400 transition-colors"><LinkIcon size={12} /> CONNECT_TO_PARENT_NODE</label>
+                <label className={`text-xs font-bold flex items-center gap-2 transition-colors ${shouldShowParentSearch ? 'text-slate-500 group-focus-within:text-purple-400' : 'text-slate-700'}`}>
+                  <LinkIcon size={12} /> 
+                  CONNECT_TO_PARENT_NODE
+                </label>
+                
                 <div className="flex bg-slate-950 rounded border border-slate-800 p-0.5">
                   <button type="button" onClick={() => setParentType("EMAIL")} className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors ${parentType === "EMAIL" ? "bg-slate-800 text-purple-300" : "text-slate-600 hover:text-slate-400"}`}>EMAIL/UTILITY</button>
                   <button type="button" onClick={() => setParentType("GAME")} className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors ${parentType === "GAME" ? "bg-purple-900/30 text-purple-300" : "text-slate-600 hover:text-slate-400"}`}>STEAM/GAME</button>
                   <button type="button" onClick={() => setParentType("OTHER")} className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors ${parentType === "OTHER" ? "bg-slate-800 text-purple-300" : "text-slate-600 hover:text-slate-400"}`}>OTHER</button>
                 </div>
               </div>
+
               <div className="relative">
-                <input type="text" name="linkedEmail" value={formData.linkedEmail} onChange={handleInputChange} onFocus={() => setShowSuggestions(true)} placeholder={parentType === "GAME" ? "Search Steam/Game Account..." : "Search Parent Email..."} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-purple-500/50 placeholder:text-slate-700" autoComplete="off" />
+                <input 
+                  type="text" 
+                  name="linkedEmail" 
+                  value={formData.linkedEmail} 
+                  onChange={handleInputChange} 
+                  onFocus={() => setShowSuggestions(true)} 
+                  placeholder={parentType === "GAME" ? "Search Steam/Game Account..." : "Search Parent Email..."} 
+                  className={`w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none placeholder:text-slate-700 ${shouldShowParentSearch ? 'focus:border-purple-500/50' : 'cursor-not-allowed opacity-50'}`}
+                  autoComplete="off" 
+                />
+                
+                {/* Visual indicator if linked */}
+                {formData.linkedAccountId && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-500">
+                        <LinkIcon size={14} />
+                    </div>
+                )}
+
                 {showSuggestions && formData.linkedEmail && filteredParents.length > 0 && (
                   <div className="absolute bottom-full left-0 w-full mb-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                     <div className="px-3 py-2 text-[10px] font-bold text-slate-500 bg-slate-950 border-b border-slate-800 flex justify-between"><span>SUGGESTED_PARENTS ({parentType})</span><span>RESULTS: {filteredParents.length}</span></div>
@@ -434,7 +502,7 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
                   </div>
                 )}
               </div>
-              <p className="text-[10px] text-slate-600 italic">*Cari dan pilih akun induk (Steam, Google, dll) untuk menghubungkan dalam visualisasi jaringan.</p>
+              <p className="text-[10px] text-slate-600 italic">*Tautkan akun ini ke akun induknya (misal: Game -> Steam, Shopee -> Google) untuk visualisasi konektivitas.</p>
             </div>
           </div>
         </div>

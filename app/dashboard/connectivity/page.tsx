@@ -13,21 +13,20 @@ import {
   Briefcase, 
   Mail, 
   Music, 
-  Lock,
   Globe,
-  Smartphone,
-  Cpu,
-  Terminal,
-  Activity,
-  Shield,
-  Wifi,
-  Search,
-  ExternalLink,
-  GraduationCap,
   ShoppingBag,
   MoreHorizontal,
   GitBranch,
-  ArrowRightCircle
+  ArrowRightCircle,
+  Activity,
+  Search,
+  Wifi,
+  Terminal,
+  Cpu,
+  Shield,
+  ExternalLink,
+  GraduationCap,
+  Link as LinkIcon
 } from "lucide-react";
 import { onAuthStateChanged } from "firebase/auth";
 
@@ -58,9 +57,16 @@ const getCategoryIcon = (category: AccountCategory, size = 16) => {
   }
 };
 
+// Interface tambahan untuk node anak agar bisa menyimpan info jalur koneksi
+interface ConnectedNode extends Account {
+    connectionPath?: string; // Info: "Direct", "Via Steam", dll
+    depth?: number;
+}
+
 interface ConnectionGroup {
-  parentId: string; // Identifier of the parent (Email or Username)
-  children: Account[];
+  parentId: string; // Identifier of the root parent
+  rootAccount?: Account; // Data akun root jika ada di DB
+  children: ConnectedNode[];
 }
 
 export default function ConnectivityPage() {
@@ -71,6 +77,67 @@ export default function ConnectivityPage() {
   
   // State untuk animasi scanning
   const [scanProgress, setScanProgress] = useState(0);
+
+  // --- LOGIC INTI: RECURSIVE IDENTITY TRACING ---
+  // Fungsi ini mencari "Root Identifier" dari sebuah akun dengan menelusuri rantai parent
+  const findRootNode = (
+    currentAcc: Account, 
+    allAccountsMap: Map<string, Account>, 
+    visitedIds = new Set<string>()
+  ): { rootIdentifier: string, path: string[], rootAccount?: Account } => {
+    
+    // Mencegah infinite loop (Circular dependency protection)
+    if (visitedIds.has(currentAcc.id)) {
+        return { rootIdentifier: currentAcc.identifier, path: [], rootAccount: currentAcc };
+    }
+    visitedIds.add(currentAcc.id);
+
+    // Cek Relasi 1: Via Linked Account ID (Fitur Baru)
+    if (currentAcc.linkedAccountId) {
+        const parentAcc = allAccountsMap.get(currentAcc.linkedAccountId);
+        if (parentAcc) {
+            const parentResult = findRootNode(parentAcc, allAccountsMap, visitedIds);
+            return {
+                rootIdentifier: parentResult.rootIdentifier,
+                path: [parentAcc.serviceName, ...parentResult.path],
+                rootAccount: parentResult.rootAccount
+            };
+        }
+    }
+
+    // Cek Relasi 2: Via Linked Email (Legacy String Matching)
+    // Jika authMethod bukan email (misal sso_steam) dan punya linkedEmail
+    if (currentAcc.linkedEmail && currentAcc.authMethod !== 'email') {
+        // Cari akun yang identifier-nya sama dengan linkedEmail ini
+        // Note: Ini agak expensive operasinya kalau data ribuan, tapi ok untuk personal vault
+        let parentAcc: Account | undefined;
+        for (const acc of allAccountsMap.values()) {
+            if (acc.identifier.toLowerCase() === currentAcc.linkedEmail.toLowerCase() && acc.id !== currentAcc.id) {
+                parentAcc = acc;
+                break;
+            }
+        }
+
+        if (parentAcc) {
+             const parentResult = findRootNode(parentAcc, allAccountsMap, visitedIds);
+             return {
+                rootIdentifier: parentResult.rootIdentifier,
+                path: [parentAcc.serviceName, ...parentResult.path],
+                rootAccount: parentResult.rootAccount
+            };
+        } else {
+            // Parent tidak ada di DB, tapi linkedEmail adalah "Ujung" yang diketahui
+            return { 
+                rootIdentifier: currentAcc.linkedEmail.toLowerCase(), 
+                path: ["External Email"],
+                rootAccount: undefined 
+            };
+        }
+    }
+
+    // Jika tidak punya parent, berarti dia adalah ROOT
+    return { rootIdentifier: currentAcc.identifier.toLowerCase(), path: [], rootAccount: currentAcc };
+  };
 
   // Fetch Data
   useEffect(() => {
@@ -90,30 +157,61 @@ export default function ConnectivityPage() {
           ...doc.data()
         })) as Account[];
 
-        // Cari semua unique Identifier yang dijadikan parent (linkedEmail value)
-        const parentIds = new Set<string>();
+        // Buat Map untuk lookup cepat O(1) berdasarkan ID
+        const accountsMap = new Map<string, Account>();
+        allAccounts.forEach(acc => accountsMap.set(acc.id, acc));
+
+        // Grouping Process
+        const tempGroups: Record<string, ConnectionGroup> = {};
+
         allAccounts.forEach(acc => {
-          if (acc.linkedEmail) parentIds.add(acc.linkedEmail.toLowerCase().trim());
+            // Lakukan tracing untuk setiap akun
+            const trace = findRootNode(acc, accountsMap, new Set());
+            const rootId = trace.rootIdentifier;
+
+            if (!tempGroups[rootId]) {
+                tempGroups[rootId] = {
+                    parentId: rootId,
+                    rootAccount: trace.rootAccount,
+                    children: []
+                };
+            }
+
+            // Jika akun ini bukan root-nya sendiri, masukkan ke children
+            // ATAU jika dia root tapi kita ingin dia tampil juga (opsional, biasanya root jadi center)
+            if (trace.rootAccount?.id !== acc.id || !trace.rootAccount) {
+                // Tentukan label path koneksi
+                let connectionPath = "Direct Link";
+                if (trace.path.length > 0) {
+                    connectionPath = `Via ${trace.path[0]}`; // Ambil parent terdekat
+                }
+
+                tempGroups[rootId].children.push({
+                    ...acc,
+                    connectionPath: connectionPath,
+                    depth: trace.path.length
+                });
+            }
         });
 
-        const groupedData: ConnectionGroup[] = [];
-        parentIds.forEach(pId => {
-          const children = allAccounts.filter(
-            acc => acc.linkedEmail?.toLowerCase().trim() === pId
-          );
-          if (children.length > 0) {
-            groupedData.push({ parentId: pId, children });
-          }
-        });
-
-        // Sort: Root nodes first (those who are NOT listed as identifier in groupedData children? Or just by size)
-        // Simple sort by number of children for now
-        groupedData.sort((a, b) => b.children.length - a.children.length);
+        // Convert object to array & filter groups that have children OR are explicit roots
+        const groupedArray = Object.values(tempGroups)
+            .filter(g => g.children.length > 0) // Hanya tampilkan grup yang punya koneksi
+            .sort((a, b) => b.children.length - a.children.length);
         
-        setGroups(groupedData);
-        if (!selectedParentId && groupedData.length > 0) {
-          setSelectedParentId(groupedData[0].parentId);
+        setGroups(groupedArray);
+        
+        // Preserve selection or select first
+        if (!selectedParentId && groupedArray.length > 0) {
+          setSelectedParentId(groupedArray[0].parentId);
+        } else if (selectedParentId) {
+             // Pastikan selection masih valid setelah update data
+             const stillExists = groupedArray.find(g => g.parentId === selectedParentId);
+             if (!stillExists && groupedArray.length > 0) {
+                 setSelectedParentId(groupedArray[0].parentId);
+             }
         }
+
         setLoading(false);
       });
 
@@ -124,15 +222,13 @@ export default function ConnectivityPage() {
         unsubscribeAuth();
         clearInterval(scanInterval);
     };
-  }, [selectedParentId]);
+  }, [selectedParentId]); // Hapus deps yang tidak perlu jika ada warning, tapi selectedParentId aman disini untuk re-evaluasi selection
 
   const activeGroup = groups.find(g => g.parentId === selectedParentId);
 
   // Fungsi navigasi smart
   const handleNodeClick = (account: Account) => {
-    // Cek apakah akun ini adalah Parent bagi node lain?
-    // Jika ya, pindah view ke Group dia.
-    // Jika tidak, buka detail page.
+    // Cek apakah akun ini adalah Hub di group lain?
     const isParent = groups.some(g => g.parentId.toLowerCase() === account.identifier.toLowerCase());
     
     if (isParent) {
@@ -158,9 +254,9 @@ export default function ConnectivityPage() {
                 />
             </div>
             <div className="text-xs text-slate-500 space-y-1">
-                <p>{'>'} Detecting nodes...</p>
-                <p>{'>'} Encrypting connection...</p>
-                <p>{'>'} Fetching topology map...</p>
+                <p>{'>'} Tracing neural pathways...</p>
+                <p>{'>'} Resolving identity chains...</p>
+                <p>{'>'} Building logic matrix...</p>
             </div>
         </div>
       </div>
@@ -178,9 +274,9 @@ export default function ConnectivityPage() {
             </div>
             <div>
                 <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                    NET_VISUALIZER <span className="text-xs px-2 py-0.5 rounded bg-cyan-900/50 text-cyan-300 border border-cyan-800">v2.1</span>
+                    NET_VISUALIZER <span className="text-xs px-2 py-0.5 rounded bg-cyan-900/50 text-cyan-300 border border-cyan-800">v3.0 AI</span>
                 </h1>
-                <p className="text-xs text-slate-500 mt-1">SECURE CONNECTION ESTABLISHED</p>
+                <p className="text-xs text-slate-500 mt-1">RECURSIVE IDENTITY TRACKING ACTIVE</p>
             </div>
         </div>
         <div className="flex gap-4 text-xs">
@@ -190,7 +286,7 @@ export default function ConnectivityPage() {
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800">
                 <Wifi size={14} className="text-cyan-400" />
-                <span className="text-slate-400">{groups.length} HUBS DETECTED</span>
+                <span className="text-slate-400">{groups.length} CLUSTERS DETECTED</span>
             </div>
         </div>
       </div>
@@ -202,12 +298,12 @@ export default function ConnectivityPage() {
             <div className={`p-4 rounded-lg border ${THEME.border} ${THEME.panel}`}>
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">
                     <Search size={14} />
-                    Signal Sources (HUBS)
+                    Identity Clusters
                 </div>
                 <div className="space-y-1 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                     {groups.length === 0 ? (
                         <div className="text-xs text-slate-600 text-center py-4 border border-dashed border-slate-800 rounded">
-                            NO_SIGNAL
+                            NO_RELATIONS_FOUND
                         </div>
                     ) : groups.map((group) => (
                         <button
@@ -220,8 +316,13 @@ export default function ConnectivityPage() {
                             }`}
                         >
                             <div className="truncate flex-1 mr-2">
-                                <p className="font-bold truncate opacity-90">{group.parentId}</p>
-                                <p className="text-[10px] opacity-60 mt-0.5">{group.children.length} SUB-NODES</p>
+                                <p className="font-bold truncate opacity-90">
+                                    {group.rootAccount ? group.rootAccount.serviceName : group.parentId}
+                                </p>
+                                <p className="text-[10px] opacity-60 mt-0.5 flex items-center gap-1">
+                                    <GitBranch size={10} />
+                                    {group.children.length} LINKED_NODES
+                                </p>
                             </div>
                             {selectedParentId === group.parentId && (
                                 <Activity size={14} className="text-cyan-400 animate-pulse" />
@@ -236,20 +337,24 @@ export default function ConnectivityPage() {
                 <div className={`p-4 rounded-lg border ${THEME.border} ${THEME.panel} flex-1`}>
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">
                         <Terminal size={14} />
-                        HUB_METADATA
+                        CLUSTER_METADATA
                     </div>
                     <div className="space-y-3 text-xs">
                         <div className="flex justify-between border-b border-slate-800 pb-2">
-                            <span className="text-slate-500">ROOT_ID</span>
-                            <span className="text-cyan-300 truncate max-w-[150px]" title={activeGroup.parentId}>{activeGroup.parentId}</span>
+                            <span className="text-slate-500">ROOT_TYPE</span>
+                            <span className="text-cyan-300">
+                                {activeGroup.rootAccount ? activeGroup.rootAccount.category : "EXTERNAL"}
+                            </span>
                         </div>
                         <div className="flex justify-between border-b border-slate-800 pb-2">
-                            <span className="text-slate-500">CONNECTED_NODES</span>
-                            <span className="text-white">{activeGroup.children.length}</span>
+                            <span className="text-slate-500">IDENTIFIER</span>
+                            <span className="text-white truncate max-w-[120px]" title={activeGroup.parentId}>
+                                {activeGroup.parentId}
+                            </span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-slate-500">ENCRYPTION</span>
-                            <span className="text-emerald-400">AES-256</span>
+                            <span className="text-slate-500">STATUS</span>
+                            <span className="text-emerald-400">SECURE</span>
                         </div>
                     </div>
                 </div>
@@ -278,7 +383,7 @@ export default function ConnectivityPage() {
                     <TopologyViewer 
                       group={activeGroup} 
                       onNodeClick={handleNodeClick} 
-                      allGroups={groups} // Pass info about other groups to detect intermediate parents
+                      allGroups={groups} 
                     />
                 ) : (
                     <div className="flex flex-col items-center text-slate-600 animate-pulse">
@@ -294,7 +399,7 @@ export default function ConnectivityPage() {
   );
 }
 
-// --- SUB-COMPONENT: TOPOLOGY VIEWER (THE COOL PART) ---
+// --- SUB-COMPONENT: TOPOLOGY VIEWER ---
 function TopologyViewer({ group, onNodeClick, allGroups }: { group: ConnectionGroup, onNodeClick: (acc: Account) => void, allGroups: ConnectionGroup[] }) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ w: 0, h: 0 });
@@ -317,7 +422,7 @@ function TopologyViewer({ group, onNodeClick, allGroups }: { group: ConnectionGr
     // Calculate Positions
     const centerX = dimensions.w / 2;
     const centerY = dimensions.h / 2;
-    const radius = Math.min(dimensions.w, dimensions.h) / 3; // Jarak node anak dari pusat
+    const radius = Math.min(dimensions.w, dimensions.h) / 3;
 
     return (
         <div ref={containerRef} className="w-full h-full relative">
@@ -329,7 +434,7 @@ function TopologyViewer({ group, onNodeClick, allGroups }: { group: ConnectionGr
                     </linearGradient>
                 </defs>
                 {group.children.map((app, index) => {
-                    const angle = (index * 2 * Math.PI) / group.children.length; // Distribusi melingkar
+                    const angle = (index * 2 * Math.PI) / group.children.length;
                     const x = centerX + radius * Math.cos(angle);
                     const y = centerY + radius * Math.sin(angle);
                     
@@ -340,7 +445,8 @@ function TopologyViewer({ group, onNodeClick, allGroups }: { group: ConnectionGr
                                 x1={centerX} y1={centerY} 
                                 x2={x} y2={y} 
                                 stroke="url(#lineGradient)" 
-                                strokeWidth="1"
+                                strokeWidth={app.depth && app.depth > 0 ? 0.5 : 1} // Garis lebih tipis kalau indirect
+                                strokeDasharray={app.depth && app.depth > 0 ? "4 4" : ""} // Putus-putus kalau indirect
                                 className="opacity-50"
                             />
                             {/* Animated Packet */}
@@ -364,29 +470,34 @@ function TopologyViewer({ group, onNodeClick, allGroups }: { group: ConnectionGr
                     <div className="absolute inset-0 bg-cyan-500/20 animate-pulse" />
                     <div className="relative z-10 flex flex-col items-center">
                       <Cpu size={32} className="text-cyan-400" />
-                      <span className="text-[8px] font-bold text-cyan-200 mt-1">MAIN_HUB</span>
+                      <span className="text-[8px] font-bold text-cyan-200 mt-1">CORE</span>
                     </div>
                 </div>
                 <div className="mt-3 bg-slate-900/90 px-3 py-1 rounded text-[10px] text-cyan-300 border border-cyan-500/30 backdrop-blur-sm shadow-xl max-w-[200px] truncate text-center">
-                    {group.parentId}
+                    {group.rootAccount ? group.rootAccount.serviceName : group.parentId}
                 </div>
             </div>
 
             {/* CHILD NODES (APPS) - CLICKABLE */}
             {group.children.map((app, index) => {
                 const angle = (index * 2 * Math.PI) / group.children.length;
-                const top = 50 + 33 * Math.sin(angle);
-                const left = 50 + 33 * Math.cos(angle) * (dimensions.h / dimensions.w);
+                // Adjust radius slightly for responsiveness
+                const r = Math.min(dimensions.w, dimensions.h) / 3;
+                
+                // Kalkulasi posisi exact
+                const topVal = centerY + r * Math.sin(angle);
+                const leftVal = centerX + r * Math.cos(angle);
+                
                 const isHub = isNodeHub(app.identifier);
 
                 return (
                     <div 
                         key={app.id}
-                        onClick={() => onNodeClick(app)} // AKSI KLIK DI SINI
+                        onClick={() => onNodeClick(app)}
                         className="absolute z-10 flex flex-col items-center justify-center w-24 h-24 hover:z-30 transition-all duration-300 group/node cursor-pointer"
                         style={{ 
-                            top: `calc(${50 + 35 * Math.sin(angle)}% - 3rem)`, 
-                            left: `calc(${50 + 35 * Math.cos(angle)}% - 3rem)` 
+                            top: topVal - 48, // offset setengah tinggi (24px + margin area)
+                            left: leftVal - 48 
                         }}
                     >
                         <div className={`w-12 h-12 rounded-lg bg-slate-900 border flex items-center justify-center shadow-lg group-hover/node:shadow-[0_0_20px_rgba(34,211,238,0.3)] group-hover/node:scale-110 transition-all relative
@@ -404,10 +515,12 @@ function TopologyViewer({ group, onNodeClick, allGroups }: { group: ConnectionGr
                               </div>
                             )}
 
-                            {/* External Link Icon on Hover */}
-                            <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center opacity-0 group-hover/node:opacity-100 transition-opacity">
-                                {isHub ? <ArrowRightCircle size={16} className="text-amber-400" /> : <ExternalLink size={16} className="text-white" />}
-                            </div>
+                            {/* Indirect Link Indicator (Badge kecil jika koneksi tidak langsung) */}
+                            {app.depth && app.depth > 0 && (
+                                <div className="absolute -top-2 -left-2 w-4 h-4 bg-purple-500 rounded-full border-2 border-slate-950 flex items-center justify-center" title="Indirect Connection">
+                                    <LinkIcon size={8} className="text-white" />
+                                </div>
+                            )}
                         </div>
                         
                         {/* Tooltip Label */}
@@ -415,14 +528,20 @@ function TopologyViewer({ group, onNodeClick, allGroups }: { group: ConnectionGr
                             <div className="bg-slate-900 px-3 py-2 rounded border border-slate-700 shadow-xl text-left min-w-[140px]">
                                 <p className="text-xs font-bold text-white truncate">{app.serviceName}</p>
                                 <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate max-w-[120px]">{app.identifier}</p>
-                                <p className="text-[9px] text-cyan-500 mt-1 uppercase tracking-wider">{app.category}</p>
+                                
+                                {/* Info Koneksi */}
+                                <div className="mt-1 pt-1 border-t border-slate-800">
+                                    <p className="text-[9px] text-cyan-500 uppercase tracking-wider flex items-center gap-1">
+                                        <LinkIcon size={8} /> {app.connectionPath || "Direct"}
+                                    </p>
+                                </div>
                                 
                                 {isHub ? (
-                                  <p className="text-[9px] text-amber-400 mt-1 border-t border-slate-800 pt-1 flex items-center gap-1 font-bold">
+                                  <p className="text-[9px] text-amber-400 mt-1 flex items-center gap-1 font-bold">
                                     <GitBranch size={10} /> EXPAND_HUB
                                   </p>
                                 ) : (
-                                  <p className="text-[9px] text-emerald-400 mt-1 border-t border-slate-800 pt-1 flex items-center gap-1">
+                                  <p className="text-[9px] text-emerald-400 mt-1 flex items-center gap-1">
                                     <ExternalLink size={10} /> INSPECT_DATA
                                   </p>
                                 )}

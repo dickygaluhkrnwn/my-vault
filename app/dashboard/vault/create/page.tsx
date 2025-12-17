@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { collection, addDoc, serverTimestamp, query, orderBy, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Account, AccountCategory, AccountStatus } from "@/lib/types/schema";
+import { Account, AccountCategory, AccountStatus, AuthMethod } from "@/lib/types/schema";
 import { TEMPLATES, TemplateField } from "@/lib/constants/templates";
 import { 
   Save, 
@@ -31,7 +31,8 @@ import {
   Settings2,
   X,
   Link as LinkIcon,
-  Search
+  Search,
+  KeyRound
 } from "lucide-react";
 
 // --- THEME CONFIG ---
@@ -59,6 +60,19 @@ const CATEGORIES: { label: string; value: AccountCategory; icon: any }[] = [
   { label: "OTHER", value: "OTHER", icon: MoreHorizontal },
 ];
 
+// Opsi Auth Method (Sesuai Schema Baru)
+const AUTH_METHODS: { label: string; value: AuthMethod }[] = [
+  { label: "Email & Password", value: "email" },
+  { label: "Username & Password", value: "username" },
+  { label: "Phone Number", value: "phone" },
+  { label: "SSO: Google Account", value: "sso_google" },
+  { label: "SSO: Apple ID", value: "sso_apple" },
+  { label: "SSO: Facebook", value: "sso_facebook" },
+  { label: "SSO: Steam", value: "sso_steam" },
+  { label: "Linked / 3rd Party", value: "linked_account" },
+  { label: "Other Method", value: "other" },
+];
+
 const OWNERS = ["Dicky", "Ibu", "Ayah", "Adik", "Mase", "Keluarga"];
 
 export default function CreateAccountPage() {
@@ -71,7 +85,9 @@ export default function CreateAccountPage() {
     category: "SOCIAL" as AccountCategory,
     identifier: "",
     password: "",
+    authMethod: "email" as AuthMethod, // [BARU] Default method
     linkedEmail: "", 
+    linkedAccountId: "", // [BARU] ID Relasi Database
     owner: "Dicky",
     status: "ACTIVE" as AccountStatus,
     tags: "", 
@@ -85,7 +101,6 @@ export default function CreateAccountPage() {
   const [customFields, setCustomFields] = useState<{key: string, value: string}[]>([]);
 
   // --- SMART PARENT SEARCH STATE ---
-  const [parentType, setParentType] = useState<"EMAIL" | "GAME" | "OTHER">("EMAIL");
   const [parentSuggestions, setParentSuggestions] = useState<Account[]>([]);
   const [filteredParents, setFilteredParents] = useState<Account[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -106,6 +121,15 @@ export default function CreateAccountPage() {
     fetchParents();
   }, []);
 
+  // [LOGIKA BARU] Rekomendasi Auth Method berdasarkan Kategori
+  useEffect(() => {
+    if (formData.category === "GAME") {
+      setFormData(prev => ({ ...prev, authMethod: "username" })); // Game biasanya username/ign
+    } else if (["FINANCE", "UTILITY", "WORK"].includes(formData.category)) {
+      setFormData(prev => ({ ...prev, authMethod: "email" }));
+    }
+  }, [formData.category]);
+
   // Filter Suggestions Logic
   useEffect(() => {
     if (!formData.linkedEmail) {
@@ -114,25 +138,17 @@ export default function CreateAccountPage() {
     }
     const search = formData.linkedEmail.toLowerCase();
     const filtered = parentSuggestions.filter(acc => {
-      // 1. Filter by Context (Parent Type)
-      let typeMatch = true;
-      if (parentType === "GAME") {
-        // Jika mode Game/Steam, cari yang kategorinya GAME
-        typeMatch = acc.category === "GAME";
-      } else if (parentType === "EMAIL") {
-        // Jika mode Email, prioritaskan Utility/Social/Work
-        typeMatch = ["UTILITY", "SOCIAL", "WORK"].includes(acc.category);
-      }
-
-      // 2. Filter by Text
+      // 1. Filter Context: Jangan tampilkan diri sendiri (di create page belum ada ID, aman)
+      
+      // 2. Filter Text
       const textMatch = 
         acc.serviceName.toLowerCase().includes(search) || 
         acc.identifier.toLowerCase().includes(search);
       
-      return typeMatch && textMatch;
+      return textMatch;
     });
     setFilteredParents(filtered.slice(0, 5)); // Ambil 5 teratas
-  }, [formData.linkedEmail, parentType, parentSuggestions]);
+  }, [formData.linkedEmail, parentSuggestions]);
 
   // Click Outside to close suggestions
   useEffect(() => {
@@ -154,11 +170,20 @@ export default function CreateAccountPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    if (name === "linkedEmail") setShowSuggestions(true);
+    
+    // Jika user mengetik manual di linkedEmail, reset linkedAccountId agar konsisten
+    if (name === "linkedEmail") {
+        setFormData(prev => ({ ...prev, linkedAccountId: "" }));
+        setShowSuggestions(true);
+    }
   };
 
   const selectParent = (acc: Account) => {
-    setFormData(prev => ({ ...prev, linkedEmail: acc.identifier }));
+    setFormData(prev => ({ 
+        ...prev, 
+        linkedEmail: acc.identifier,
+        linkedAccountId: acc.id // [PENTING] Simpan ID parent
+    }));
     setShowSuggestions(false);
   };
 
@@ -205,6 +230,7 @@ export default function CreateAccountPage() {
           finalDetails[safeKey] = field.value;
         }
       });
+      // Bersihkan field kosong
       Object.keys(finalDetails).forEach(key => {
         if (finalDetails[key] === "" || finalDetails[key] === undefined) {
           delete finalDetails[key];
@@ -232,6 +258,15 @@ export default function CreateAccountPage() {
   const currentTemplateFields = TEMPLATES[formData.category] || [];
   const availableSuggestions = currentTemplateFields.filter(f => !activeTemplateKeys.includes(f.key));
   const activeFields = currentTemplateFields.filter(f => activeTemplateKeys.includes(f.key));
+
+  // Helper untuk cek apakah perlu menampilkan Parent Search
+  const shouldShowParentSearch = [
+    "linked_account", 
+    "sso_google", 
+    "sso_steam", 
+    "sso_facebook", 
+    "sso_apple"
+  ].includes(formData.authMethod);
 
   return (
     <div className={`max-w-3xl mx-auto pb-20 space-y-6 font-mono text-slate-200 animate-in fade-in slide-in-from-bottom-4 duration-500`}>
@@ -269,7 +304,8 @@ export default function CreateAccountPage() {
             <div className="space-y-1 group">
               <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400 transition-colors">SERVICE_NAME</label>
               <div className="flex items-center bg-slate-950 border border-slate-800 rounded p-2 focus-within:border-cyan-500/50 transition-all">
-                <span className="text-slate-600 mr-2">{'>'}</span>
+                {/* FIX: Use HTML entity &gt; instead of > to prevent parser error */}
+                <span className="text-slate-600 mr-2">&gt;</span> 
                 <input required name="serviceName" value={formData.serviceName} onChange={handleInputChange} placeholder="Ex: Mobile Legends, BCA" className="bg-transparent border-none outline-none w-full text-sm placeholder:text-slate-700" />
               </div>
             </div>
@@ -301,7 +337,7 @@ export default function CreateAccountPage() {
           </div>
         </div>
 
-        {/* SECTION 2: ACCESS CREDENTIALS (UPDATED SMART PARENT) */}
+        {/* SECTION 2: ACCESS CREDENTIALS (ADAPTIVE) */}
         <div className={`p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-6 relative overflow-hidden`}>
           <div className="absolute top-0 left-0 w-1 h-full bg-purple-500/20" />
           <h3 className="text-sm font-bold text-purple-400 border-b border-slate-800 pb-2 flex items-center gap-2 uppercase tracking-wider">
@@ -310,11 +346,25 @@ export default function CreateAccountPage() {
           </h3>
 
           <div className="space-y-4">
+            
+            {/* AUTH METHOD SELECTOR */}
+            <div className="space-y-1 group">
+              <label className="text-xs font-bold text-slate-500 group-focus-within:text-purple-400 transition-colors flex items-center gap-2">
+                <KeyRound size={12} /> AUTH_PROTOCOL (METHOD)
+              </label>
+              <div className="relative">
+                <select name="authMethod" value={formData.authMethod} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-purple-500/50 text-slate-300 appearance-none">
+                  {AUTH_METHODS.map(method => <option key={method.value} value={method.value}>{method.label}</option>)}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600"><ChevronRight size={14} className="rotate-90" /></div>
+              </div>
+            </div>
+
             <div className="space-y-1 group">
               <label className="text-xs font-bold text-slate-500 group-focus-within:text-purple-400 transition-colors">IDENTIFIER / USERNAME</label>
               <div className="flex items-center bg-slate-950 border border-slate-800 rounded p-2 focus-within:border-purple-500/50 transition-all">
                 <Mail size={14} className="text-slate-600 mr-2" />
-                <input required name="identifier" value={formData.identifier} onChange={handleInputChange} placeholder="user@domain.com or Username" className="bg-transparent border-none outline-none w-full text-sm placeholder:text-slate-700" />
+                <input required name="identifier" value={formData.identifier} onChange={handleInputChange} placeholder="user@domain.com, Username, or ID" className="bg-transparent border-none outline-none w-full text-sm placeholder:text-slate-700" />
               </div>
             </div>
 
@@ -327,37 +377,20 @@ export default function CreateAccountPage() {
             </div>
 
             {/* --- SMART PARENT LINK SECTION --- */}
-            <div className="space-y-2 pt-2 border-t border-slate-800 border-dashed group relative" ref={suggestionRef}>
+            {/* Muncul jika method login memerlukan induk (SSO / Linked) */}
+            <div className={`space-y-2 pt-2 border-t border-slate-800 border-dashed group relative transition-all duration-300 ${shouldShowParentSearch ? 'opacity-100' : 'opacity-50 grayscale'}`} ref={suggestionRef}>
               <div className="flex justify-between items-end">
-                <label className="text-xs font-bold text-slate-500 flex items-center gap-2 group-focus-within:text-purple-400 transition-colors">
+                <label className={`text-xs font-bold flex items-center gap-2 transition-colors ${shouldShowParentSearch ? 'text-slate-500 group-focus-within:text-purple-400' : 'text-slate-700'}`}>
                   <LinkIcon size={12} />
                   CONNECT_TO_PARENT_NODE
                 </label>
                 
-                {/* Parent Type Switcher */}
-                <div className="flex bg-slate-950 rounded border border-slate-800 p-0.5">
-                  <button 
-                    type="button" 
-                    onClick={() => setParentType("EMAIL")}
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors ${parentType === "EMAIL" ? "bg-slate-800 text-purple-300" : "text-slate-600 hover:text-slate-400"}`}
-                  >
-                    EMAIL/UTILITY
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => setParentType("GAME")}
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors ${parentType === "GAME" ? "bg-purple-900/30 text-purple-300" : "text-slate-600 hover:text-slate-400"}`}
-                  >
-                    STEAM/GAME
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => setParentType("OTHER")}
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors ${parentType === "OTHER" ? "bg-slate-800 text-purple-300" : "text-slate-600 hover:text-slate-400"}`}
-                  >
-                    OTHER
-                  </button>
-                </div>
+                {/* Indicator Badge */}
+                {shouldShowParentSearch && (
+                  <span className="text-[9px] bg-purple-900/30 text-purple-300 px-2 py-0.5 rounded border border-purple-500/20">
+                    REQUIRED FOR {formData.authMethod.toUpperCase()}
+                  </span>
+                )}
               </div>
 
               <div className="relative">
@@ -367,16 +400,23 @@ export default function CreateAccountPage() {
                   value={formData.linkedEmail}
                   onChange={handleInputChange}
                   onFocus={() => setShowSuggestions(true)}
-                  placeholder={parentType === "GAME" ? "Search Steam/Game Account..." : "Search Parent Email..."} 
-                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-purple-500/50 placeholder:text-slate-700"
+                  placeholder="Search Parent Account (Email, Steam, Google...)" 
+                  className={`w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none placeholder:text-slate-700 ${shouldShowParentSearch ? 'focus:border-purple-500/50' : 'cursor-not-allowed opacity-50'}`}
                   autoComplete="off"
                 />
                 
+                {/* Visual indicator if linked */}
+                {formData.linkedAccountId && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-500">
+                        <LinkIcon size={14} />
+                    </div>
+                )}
+
                 {/* Autocomplete Suggestions */}
                 {showSuggestions && formData.linkedEmail && filteredParents.length > 0 && (
                   <div className="absolute bottom-full left-0 w-full mb-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                     <div className="px-3 py-2 text-[10px] font-bold text-slate-500 bg-slate-950 border-b border-slate-800 flex justify-between">
-                      <span>SUGGESTED_PARENTS ({parentType})</span>
+                      <span>SUGGESTED_PARENTS</span>
                       <span>RESULTS: {filteredParents.length}</span>
                     </div>
                     {filteredParents.map(acc => (
@@ -397,13 +437,13 @@ export default function CreateAccountPage() {
                 )}
               </div>
               <p className="text-[10px] text-slate-600 italic">
-                *Cari dan pilih akun induk (Steam, Google, dll) untuk menghubungkan dalam visualisasi jaringan.
+                *Tautkan akun ini ke akun induknya (misal: Game -> Steam, Shopee -> Google) untuk visualisasi konektivitas.
               </p>
             </div>
           </div>
         </div>
 
-        {/* SECTION 3: EXTENDED ATTRIBUTES (No Change Here) */}
+        {/* SECTION 3: EXTENDED ATTRIBUTES */}
         <div className={`p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-6 relative overflow-hidden`}>
           <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500/20" />
           <div className="flex justify-between items-center border-b border-slate-800 pb-2 mb-4">

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { collection, query, onSnapshot } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import { Account } from "@/lib/types/schema";
+import { Account, AccountCategory } from "@/lib/types/schema";
 import { 
   Users, 
   User, 
@@ -19,7 +19,12 @@ import {
   Lock,
   Briefcase,
   Mail,
-  Music
+  Music,
+  ShoppingBag,
+  GraduationCap,
+  MoreHorizontal,
+  Fingerprint,
+  Smartphone
 } from "lucide-react";
 import Link from "next/link";
 import { onAuthStateChanged } from "firebase/auth";
@@ -35,8 +40,8 @@ const THEME = {
   textDim: "text-slate-500",
 };
 
-// Helper Icon Kategori
-const getCategoryIcon = (category: string) => {
+// Helper Icon Kategori (Expanded)
+const getCategoryIcon = (category: AccountCategory | string) => {
   switch (category) {
     case "GAME": return <Gamepad2 size={12} className="text-purple-400" />;
     case "FINANCE": return <Wallet size={12} className="text-emerald-400" />;
@@ -44,21 +49,25 @@ const getCategoryIcon = (category: string) => {
     case "WORK": return <Briefcase size={12} className="text-amber-400" />;
     case "UTILITY": return <Mail size={12} className="text-orange-400" />;
     case "ENTERTAINMENT": return <Music size={12} className="text-pink-400" />;
-    default: return <Lock size={12} className="text-slate-400" />;
+    case "EDUCATION": return <GraduationCap size={12} className="text-yellow-400" />;
+    case "ECOMMERCE": return <ShoppingBag size={12} className="text-rose-400" />;
+    default: return <MoreHorizontal size={12} className="text-slate-400" />;
   }
 };
 
-// Tipe data untuk statistik anggota keluarga
-interface FamilyMember {
+interface FamilyMemberStats {
   name: string;
   totalAccounts: number;
-  categories: { [key: string]: number };
+  categories: Record<string, number>;
   lastActive?: Date;
+  primaryDevice?: string; // New: Derived from details
+  securityScore: number; // New: Fake metric based on account types
+  topServices: string[]; // New: List of most common services
 }
 
 export default function FamilyPage() {
   const [loading, setLoading] = useState(true);
-  const [members, setMembers] = useState<FamilyMember[]>([]);
+  const [members, setMembers] = useState<FamilyMemberStats[]>([]);
   const [user, setUser] = useState<any>(null);
 
   // 1. Cek User Login
@@ -77,40 +86,85 @@ export default function FamilyPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const accounts = snapshot.docs.map(doc => doc.data()) as Account[];
       
-      // LOGIKA GROUPING BY OWNER
-      const ownerMap = new Map<string, FamilyMember>();
+      const ownerMap = new Map<string, {
+        accounts: Account[];
+        lastActive?: Date;
+      }>();
 
+      // Grouping Logic
       accounts.forEach(acc => {
         const ownerName = acc.owner ? acc.owner.trim() : "Unassigned";
-        
         if (!ownerMap.has(ownerName)) {
-          ownerMap.set(ownerName, {
-            name: ownerName,
-            totalAccounts: 0,
-            categories: {},
-            lastActive: undefined
-          });
+            ownerMap.set(ownerName, { accounts: [], lastActive: undefined });
         }
+        const group = ownerMap.get(ownerName)!;
+        group.accounts.push(acc);
 
-        const member = ownerMap.get(ownerName)!;
-        member.totalAccounts++;
-        
-        member.categories[acc.category] = (member.categories[acc.category] || 0) + 1;
-
+        // Check Last Active
         const accDate = acc.lastUpdated && (acc.lastUpdated as any).toDate 
           ? (acc.lastUpdated as any).toDate() 
           : new Date();
-          
-        if (!member.lastActive || accDate > member.lastActive) {
-          member.lastActive = accDate;
+        
+        if (!group.lastActive || accDate > group.lastActive) {
+          group.lastActive = accDate;
         }
       });
 
-      const sortedMembers = Array.from(ownerMap.values()).sort((a, b) => 
-        b.totalAccounts - a.totalAccounts
-      );
+      // Analyze per Member
+      const processedMembers: FamilyMemberStats[] = [];
 
-      setMembers(sortedMembers);
+      ownerMap.forEach((group, name) => {
+        const categoryCounts: Record<string, number> = {};
+        const serviceCounts: Record<string, number> = {};
+        let deviceCounts: Record<string, number> = {};
+        let securityPoints = 0;
+
+        group.accounts.forEach(acc => {
+            // Categories
+            categoryCounts[acc.category] = (categoryCounts[acc.category] || 0) + 1;
+            
+            // Services
+            const svc = acc.serviceName;
+            serviceCounts[svc] = (serviceCounts[svc] || 0) + 1;
+
+            // Devices (from metadata details)
+            if (acc.details?.device) {
+                deviceCounts[acc.details.device] = (deviceCounts[acc.details.device] || 0) + 1;
+            }
+
+            // Simple Security calc (Active = good, Linked = better structure)
+            if (acc.status === 'ACTIVE') securityPoints += 10;
+            if (acc.authMethod !== 'email') securityPoints += 5; // SSO/Linked considered managed
+        });
+
+        // Determine Top Services
+        const topServices = Object.entries(serviceCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(e => e[0]);
+
+        // Determine Primary Device
+        const primaryDevice = Object.entries(deviceCounts)
+            .sort((a, b) => b[1] - a[1])[0]?.[0] || "Unknown Device";
+
+        // Normalize Score (0-100 visual)
+        const normalizedScore = Math.min(100, Math.floor((securityPoints / (group.accounts.length * 15)) * 100)) || 0;
+
+        processedMembers.push({
+            name,
+            totalAccounts: group.accounts.length,
+            categories: categoryCounts,
+            lastActive: group.lastActive,
+            primaryDevice,
+            securityScore: normalizedScore,
+            topServices
+        });
+      });
+
+      // Sort by total accounts desc
+      processedMembers.sort((a, b) => b.totalAccounts - a.totalAccounts);
+
+      setMembers(processedMembers);
       setLoading(false);
     });
 
@@ -146,7 +200,7 @@ export default function FamilyPage() {
       {/* Grid Anggota Keluarga */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {members.map((member) => (
-          <div key={member.name} className={`group relative bg-slate-900/40 border border-slate-800 hover:border-cyan-500/30 rounded-xl overflow-hidden transition-all duration-300 hover:shadow-[0_0_20px_rgba(6,182,212,0.1)] hover:-translate-y-1`}>
+          <div key={member.name} className={`group relative bg-slate-900/40 border border-slate-800 hover:border-cyan-500/30 rounded-xl overflow-hidden transition-all duration-300 hover:shadow-[0_0_20px_rgba(6,182,212,0.1)] hover:-translate-y-1 flex flex-col`}>
             
             {/* Header Card */}
             <div className="p-5 border-b border-slate-800/50 flex justify-between items-start bg-slate-950/50">
@@ -157,53 +211,69 @@ export default function FamilyPage() {
                 <div>
                   <h3 className="font-bold text-lg text-white tracking-wide">{member.name}</h3>
                   <div className="flex items-center gap-2 text-[10px] text-slate-500 uppercase">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                    <span>Active_Personnel</span>
+                    <Fingerprint size={10} className="text-emerald-500" />
+                    <span>ID_VERIFIED</span>
                   </div>
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Total_Assets</span>
+                <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Assets</span>
                 <span className="text-xl font-bold text-cyan-400 font-mono">{member.totalAccounts}</span>
               </div>
             </div>
 
             {/* Asset Distribution (Visual Bars) */}
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 flex-1">
                <div className="space-y-2">
-                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">Asset_Distribution</p>
+                 <div className="flex justify-between text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                    <span>Portfolio_Mix</span>
+                    <span className="text-cyan-500">{member.securityScore}% Secure</span>
+                 </div>
                  <div className="flex h-2 w-full rounded-full overflow-hidden bg-slate-800">
-                    {/* Visual Bar Logic */}
                     {Object.entries(member.categories).map(([cat, count], idx) => {
                         const width = (count / member.totalAccounts) * 100;
                         let color = "bg-slate-600";
-                        if(cat === 'FINANCE') color = "bg-emerald-500";
-                        if(cat === 'GAME') color = "bg-purple-500";
-                        if(cat === 'SOCIAL') color = "bg-blue-500";
+                        if(cat === 'FINANCE' || cat === 'ECOMMERCE') color = "bg-emerald-500";
+                        else if(cat === 'GAME' || cat === 'ENTERTAINMENT') color = "bg-purple-500";
+                        else if(cat === 'SOCIAL') color = "bg-blue-500";
+                        else if(cat === 'WORK' || cat === 'EDUCATION') color = "bg-amber-500";
                         
                         return <div key={idx} className={`h-full ${color}`} style={{ width: `${width}%` }} title={`${cat}: ${count}`} />
                     })}
                  </div>
                </div>
 
+               {/* Stats Grid */}
+               <div className="grid grid-cols-2 gap-3 pt-2">
+                    <div className="bg-slate-950/50 p-2 rounded border border-slate-800/50">
+                        <span className="text-[9px] text-slate-500 block mb-1">PRIMARY_DEVICE</span>
+                        <div className="text-[10px] text-slate-300 flex items-center gap-1 truncate" title={member.primaryDevice}>
+                            <Smartphone size={10} /> {member.primaryDevice}
+                        </div>
+                    </div>
+                    <div className="bg-slate-900/50 p-2 rounded border border-slate-800/50">
+                        <span className="text-[9px] text-slate-500 block mb-1">TOP_SERVICE</span>
+                        <div className="text-[10px] text-slate-300 truncate">
+                            {member.topServices[0] || "N/A"}
+                        </div>
+                    </div>
+               </div>
+
                {/* Mini Badges */}
-               <div className="flex flex-wrap gap-2">
-                 {Object.entries(member.categories).slice(0, 4).map(([cat, count]) => (
+               <div className="flex flex-wrap gap-2 pt-1">
+                 {Object.entries(member.categories).slice(0, 3).map(([cat, count]) => (
                    <span key={cat} className="px-2 py-1 bg-slate-950 border border-slate-800 text-slate-400 text-[10px] font-mono rounded flex items-center gap-1.5">
                      {getCategoryIcon(cat)} {cat.substring(0, 3)}: <span className="text-white">{count}</span>
                    </span>
                  ))}
-                 {Object.keys(member.categories).length > 4 && (
-                    <span className="px-2 py-1 bg-slate-950 border border-slate-800 text-slate-500 text-[10px] rounded">...</span>
-                 )}
                </div>
             </div>
 
             {/* Footer / Action */}
-            <div className="p-4 border-t border-slate-800/50 bg-slate-950/30 flex items-center justify-between">
+            <div className="p-4 border-t border-slate-800/50 bg-slate-950/30 flex items-center justify-between mt-auto">
               <p className="text-[10px] text-slate-600 font-mono flex items-center gap-1">
                 <Activity size={10} />
-                LAST_SYNC: {member.lastActive ? new Intl.DateTimeFormat('id-ID', { month: 'short', day: 'numeric' }).format(member.lastActive) : 'N/A'}
+                SYNC: {member.lastActive ? new Intl.DateTimeFormat('id-ID', { month: 'short', day: 'numeric' }).format(member.lastActive) : 'N/A'}
               </p>
               <Link 
                 href={`/dashboard/vault?owner=${member.name}`}
