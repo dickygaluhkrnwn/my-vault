@@ -6,79 +6,41 @@ export type AccountCategory =
   | "WORK"      
   | "UTILITY"   
   | "ENTERTAINMENT"
-  | "EDUCATION"; // Kategori Baru ditambahkan
+  | "EDUCATION"
+  | "ECOMMERCE" // Tambahan dari analisis CSV (Shopee/Tokopedia)
+  | "OTHER";
 
 // Status akun
-export type AccountStatus = "ACTIVE" | "BANNED" | "SUSPENDED" | "INACTIVE";
+export type AccountStatus = "ACTIVE" | "BANNED" | "SUSPENDED" | "INACTIVE" | "SOLD";
 
-// --- DETAILS INTERFACES (Sama seperti sebelumnya) ---
-export interface GameDetails {
-  ign?: string;
-  server?: string;
-  rank?: string;
-  level?: string | number;
-  platform?: string;
-  loginMethod?: string;
-}
-
-export interface FinanceDetails {
-  accountNumber?: string;
-  accountName?: string;
-  pinAtm?: string;
-  pinApp?: string;
-  cardType?: "VISA" | "MASTERCARD" | "GPN" | "UNKNOWN";
-  expireDate?: string;
-  branch?: string;
-}
-
-export interface SocialDetails {
-  profileUrl?: string;
-  username?: string;
-  phoneLinked?: string;
-  recoveryEmail?: string;
-  // Field tambahan untuk fleksibilitas
-  [key: string]: any; 
-}
-
-export interface StorageDetails {
-  provider?: "Google Drive" | "OneDrive" | "Dropbox";
-  quotaTotalGB?: number;
-  quotaUsedGB?: number;
-  quotaLeftGB?: number;
-  fileType?: string;
-}
-
-// Interface Baru untuk Edukasi
-export interface EducationDetails {
-  institution?: string; // Nama Platform/Sekolah (misal: Busuu, Ruangguru)
-  course?: string;      // Materi (misal: English, Coding)
-  level?: string;       // Level (misal: B2, Intermediate)
-  progress?: string;    // Progress (misal: 50%)
-}
+// --- NOTE: Interface spesifik (GameDetails dll) dihapus/disederhanakan ---
+// --- Kita beralih ke Dynamic Object agar form bisa "berubah wajah" ---
 
 // --- MAIN ACCOUNT TYPE (UPDATED) ---
 export interface Account {
   id: string;
-  serviceName: string;
+  serviceName: string; // Contoh: "Mobile Legends", "BCA", "Netflix"
   category: AccountCategory;
   
-  identifier: string;
-  password: string;
+  // Field Utama (Standard)
+  identifier: string; // Bisa Email, Username, atau No HP (Login utama)
+  password?: string;
   
-  linkedEmail?: string;
+  linkedEmail?: string; // Email pemulihan atau email terhubung
   
-  owner: string;
-  device?: string;
+  owner: string; // Nama pemilik akun (Penting untuk data Family/Shared)
+  device?: string; // Device login terakhir/umum (Analisis dari CSV Data Besar)
   
-  // Update Baru: Tanggal Lahir & Gender
+  // Data Personal (Sesuai update terakhirmu)
   birthDate?: string; // Format: YYYY-MM-DD
-  gender?: "MALE" | "FEMALE" | ""; // Jenis Kelamin
+  gender?: "MALE" | "FEMALE" | ""; 
   
   status: AccountStatus;
-  tags: string[];
+  tags: string[]; // Label cepat
   
-  // Update Union Type dengan EducationDetails
-  details?: GameDetails | FinanceDetails | SocialDetails | StorageDetails | EducationDetails | any;
+  // --- THE MAGIC PART (Sesuai Roadmap) ---
+  // Menyimpan data dinamis seperti: { "server": "Asia", "pinAtm": "123456", "quotaLeft": "2GB" }
+  details: Record<string, any>; 
   
   lastUpdated: Date;
   createdAt: Date;

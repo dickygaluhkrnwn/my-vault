@@ -38,7 +38,9 @@ import {
   GraduationCap,
   BookOpen,
   Award,
-  Percent
+  Percent,
+  ShoppingBag,
+  MoreHorizontal
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
@@ -64,15 +66,15 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
   const [showPassword, setShowPassword] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Helper Copy Text
-  const handleCopy = (text: string, fieldName: string) => {
+  // Helper Copy Text (Updated to accept undefined/null)
+  const handleCopy = (text: string | undefined | null, fieldName: string) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
     setCopiedField(fieldName);
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  // Helper Icon Kategori
+  // Helper Icon Kategori (Updated)
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case "GAME": return <Gamepad2 size={24} className="text-purple-400" />;
@@ -82,6 +84,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
       case "UTILITY": return <Mail size={24} className="text-orange-400" />;
       case "ENTERTAINMENT": return <Music size={24} className="text-pink-400" />;
       case "EDUCATION": return <GraduationCap size={24} className="text-yellow-400" />;
+      case "ECOMMERCE": return <ShoppingBag size={24} className="text-rose-400" />;
       default: return <Lock size={24} className="text-slate-400" />;
     }
   };
@@ -105,13 +108,13 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
 
           if (mainAccount.identifier) {
              const q = query(
-                collection(db, "accounts"), 
-                where("linkedEmail", "==", mainAccount.identifier)
+               collection(db, "accounts"), 
+               where("linkedEmail", "==", mainAccount.identifier)
              );
              const linkedSnap = await getDocs(q);
              const children = linkedSnap.docs
-                .map(d => ({ id: d.id, ...d.data() } as Account))
-                .filter(a => a.id !== mainAccount.id);
+               .map(d => ({ id: d.id, ...d.data() } as Account))
+               .filter(a => a.id !== mainAccount.id);
              
              setConnectedAccounts(children);
           }
@@ -319,6 +322,21 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
                 </>
               )}
 
+              {/* ECOMMERCE SPECIFIC (NEW) */}
+              {account.category === "ECOMMERCE" && account.details && (
+                <>
+                   {'shop_name' in account.details && (account.details as any).shop_name && (
+                    <DetailRow label="SHOP_IDENTIFIER" value={(account.details as any).shop_name} icon={<ShoppingBag size={14}/>} />
+                  )}
+                  {'paylater_limit' in account.details && (account.details as any).paylater_limit && (
+                    <DetailRow label="PAYLATER_CAP" value={(account.details as any).paylater_limit} icon={<CreditCard size={14}/>} />
+                  )}
+                   {'phone_linked' in account.details && (account.details as any).phone_linked && (
+                    <DetailRow label="LINKED_MOBILE" value={(account.details as any).phone_linked} icon={<Smartphone size={14}/>} />
+                  )}
+                </>
+              )}
+
               {/* GAME SPECIFIC */}
               {account.category === "GAME" && account.details && (
                 <>
@@ -369,6 +387,22 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
                   )}
                 </>
               )}
+              
+              {/* OTHER / GENERIC FIELDS (Fallback for Custom Fields) */}
+               {account.details && Object.entries(account.details).map(([key, value]) => {
+                  // Skip known keys handled above to avoid duplication
+                  const knownKeys = ['ign', 'server', 'rank', 'level', 'accountNumber', 'pinAtm', 'pinApp', 'profileUrl', 'phoneLinked', 'institution', 'course', 'progress', 'shop_name', 'paylater_limit', 'phone_linked'];
+                  if (knownKeys.includes(key)) return null;
+
+                  return (
+                    <DetailRow 
+                      key={key} 
+                      label={key.replace(/_/g, " ").toUpperCase()} 
+                      value={String(value)} 
+                      icon={<MoreHorizontal size={14}/>} 
+                    />
+                  );
+               })}
 
               {/* TAGS */}
               {account.tags && account.tags.length > 0 && (account.tags[0] !== "") && (
@@ -398,13 +432,13 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                {connectedAccounts.map((child) => (
                   <Link href={`/dashboard/vault/${child.id}`} key={child.id} className="flex items-center gap-3 p-3 bg-slate-900 border border-slate-800 hover:border-cyan-500/50 hover:bg-slate-800 transition-all group">
-                     <div className="text-slate-600 group-hover:text-cyan-400 transition-colors">
-                        {getCategoryIcon(child.category)}
-                     </div>
-                     <div className="min-w-0">
-                        <p className="font-bold text-slate-300 text-xs truncate group-hover:text-cyan-300">{child.serviceName}</p>
-                        <p className="text-[10px] text-slate-600 font-mono truncate">{child.category}</p>
-                     </div>
+                      <div className="text-slate-600 group-hover:text-cyan-400 transition-colors">
+                         {getCategoryIcon(child.category)}
+                      </div>
+                      <div className="min-w-0">
+                         <p className="font-bold text-slate-300 text-xs truncate group-hover:text-cyan-300">{child.serviceName}</p>
+                         <p className="text-[10px] text-slate-600 font-mono truncate">{child.category}</p>
+                      </div>
                   </Link>
                ))}
             </div>

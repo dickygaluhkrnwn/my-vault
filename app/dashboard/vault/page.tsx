@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { Account, AccountCategory } from "@/lib/types/schema";
+import { TEMPLATES } from "@/lib/constants/templates"; // Import Brain kita
 import { 
   Plus, 
   Search, 
@@ -33,9 +34,9 @@ import {
   Eye,
   Terminal,
   Database,
-  Filter,
-  Cpu,
-  GraduationCap
+  GraduationCap,
+  ShoppingBag,
+  MoreHorizontal
 } from "lucide-react";
 import { onAuthStateChanged } from "firebase/auth";
 import { cn, formatDate } from "@/lib/utils";
@@ -61,7 +62,8 @@ const getCategoryIcon = (category: AccountCategory) => {
     case "UTILITY": return <Mail size={20} className="text-orange-400" />;
     case "ENTERTAINMENT": return <Music size={20} className="text-pink-400" />;
     case "EDUCATION": return <GraduationCap size={20} className="text-yellow-400" />;
-    default: return <Lock size={20} className="text-slate-400" />;
+    case "ECOMMERCE": return <ShoppingBag size={20} className="text-rose-400" />;
+    default: return <MoreHorizontal size={20} className="text-slate-400" />;
   }
 };
 
@@ -73,7 +75,9 @@ const CATEGORIES: { label: string; value: AccountCategory | "ALL" }[] = [
   { label: "WORK", value: "WORK" },
   { label: "UTILITY", value: "UTILITY" },
   { label: "MEDIA", value: "ENTERTAINMENT" },
-  { label: "EDUCATION", value: "EDUCATION" }, // NEW FILTER
+  { label: "EDUCATION", value: "EDUCATION" },
+  { label: "SHOPPING", value: "ECOMMERCE" },
+  { label: "OTHER", value: "OTHER" },
 ];
 
 // --- KOMPONEN LOGIKA UTAMA ---
@@ -115,6 +119,7 @@ function VaultContent() {
           ...d,
           createdAt: d.createdAt?.toDate ? d.createdAt.toDate() : new Date(),
           lastUpdated: d.lastUpdated?.toDate ? d.lastUpdated.toDate() : new Date(),
+          details: d.details || {} // Pastikan details selalu object
         };
       }) as Account[];
       setAccounts(data);
@@ -126,14 +131,23 @@ function VaultContent() {
     return () => unsubscribe();
   }, [user]);
 
-  // 3. Filter Logic
+  // 3. Smart Filter Logic (Updated Phase 3)
   const filteredAccounts = accounts.filter((acc) => {
     const matchesCategory = selectedCategory === "ALL" || acc.category === selectedCategory;
-    const matchesSearch = acc.serviceName?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          acc.identifier?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Deep Search: Cari di Service Name, Identifier, ATAU values di dalam Details
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch = 
+      acc.serviceName?.toLowerCase().includes(searchLower) || 
+      acc.identifier?.toLowerCase().includes(searchLower) ||
+      Object.values(acc.details || {}).some(val => 
+        String(val).toLowerCase().includes(searchLower)
+      );
+
     const matchesOwner = ownerFilter 
       ? acc.owner?.toLowerCase() === ownerFilter.toLowerCase() 
       : true;
+      
     return matchesCategory && matchesSearch && matchesOwner;
   });
 
@@ -237,7 +251,7 @@ function VaultContent() {
                 </div>
                 <input 
                     type="text" 
-                    placeholder="search_query..." 
+                    placeholder="search_query (name, id, server, rank...)" 
                     className="w-full bg-slate-950/50 text-slate-200 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-900/50 transition-all font-mono text-sm placeholder:text-slate-600"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -287,125 +301,129 @@ function VaultContent() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20">
-          {filteredAccounts.map((account) => (
-            // DATA NODE CARD
-            <div key={account.id} className="group relative bg-slate-900/40 border border-slate-800 hover:border-cyan-500/30 rounded-xl overflow-hidden transition-all duration-300 hover:shadow-[0_0_20px_rgba(6,182,212,0.05)] hover:-translate-y-1">
-              
-              {/* Scanline Effect on Hover */}
-              <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/0 via-cyan-500/5 to-cyan-500/0 opacity-0 group-hover:opacity-100 translate-y-[-100%] group-hover:translate-y-[100%] transition-all duration-1000 pointer-events-none" />
+          {filteredAccounts.map((account) => {
+            // SMART CARD LOGIC: Ambil 2 field terpenting dari Template berdasarkan kategori akun
+            const templateFields = TEMPLATES[account.category] || [];
+            // Filter field yang punya value di detail akun ini, ambil max 2
+            const highlights = templateFields
+              .filter(field => (account.details as any)?.[field.key])
+              .slice(0, 2);
 
-              {/* Link Wrapper */}
-              <Link href={`/dashboard/vault/${account.id}`} className="absolute inset-0 z-0" />
-
-              <div className="p-5 relative z-10 pointer-events-none">
+            return (
+              <div key={account.id} className="group relative bg-slate-900/40 border border-slate-800 hover:border-cyan-500/30 rounded-xl overflow-hidden transition-all duration-300 hover:shadow-[0_0_20px_rgba(6,182,212,0.05)] hover:-translate-y-1">
                 
-                {/* Header Card */}
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-lg group-hover:border-cyan-500/30 transition-colors">
-                      {getCategoryIcon(account.category)}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-slate-200 text-sm line-clamp-1 group-hover:text-cyan-400 transition-colors">{account.serviceName}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[9px] text-slate-500 font-bold bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 uppercase tracking-wider">
-                            {account.category}
-                        </span>
-                        {/* Status Dot */}
-                        <span className={`w-1.5 h-1.5 rounded-full ${account.status === 'ACTIVE' ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-red-500'}`} />
+                {/* Scanline Effect on Hover */}
+                <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/0 via-cyan-500/5 to-cyan-500/0 opacity-0 group-hover:opacity-100 translate-y-[-100%] group-hover:translate-y-[100%] transition-all duration-1000 pointer-events-none" />
+
+                {/* Link Wrapper */}
+                <Link href={`/dashboard/vault/${account.id}`} className="absolute inset-0 z-0" />
+
+                <div className="p-5 relative z-10 pointer-events-none">
+                  
+                  {/* Header Card */}
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-lg group-hover:border-cyan-500/30 transition-colors">
+                        {getCategoryIcon(account.category)}
                       </div>
+                      <div>
+                        <h3 className="font-bold text-slate-200 text-sm line-clamp-1 group-hover:text-cyan-400 transition-colors">{account.serviceName}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[9px] text-slate-500 font-bold bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 uppercase tracking-wider">
+                              {account.category}
+                          </span>
+                          {/* Status Dot */}
+                          <span className={`w-1.5 h-1.5 rounded-full ${account.status === 'ACTIVE' ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-red-500'}`} />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Action Menu (Interactive) */}
+                    <div className="relative pointer-events-auto">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setOpenMenuId(openMenuId === account.id ? null : account.id);
+                        }}
+                        className="text-slate-600 hover:text-cyan-400 p-1 hover:bg-cyan-950/30 rounded transition-colors"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                      
+                      {openMenuId === account.id && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
+                          <div className="absolute right-0 top-full mt-2 w-32 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-20 py-1 overflow-hidden">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/dashboard/vault/${account.id}`);
+                              }}
+                              className="w-full text-left px-3 py-2 text-xs font-bold text-slate-400 hover:bg-cyan-950/50 hover:text-cyan-400 flex items-center gap-2"
+                            >
+                              <Eye size={12} /> INSPECT
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEdit(account.id);
+                              }}
+                              className="w-full text-left px-3 py-2 text-xs font-bold text-slate-400 hover:bg-blue-950/50 hover:text-blue-400 flex items-center gap-2"
+                            >
+                              <Pencil size={12} /> MODIFY
+                            </button>
+                            <div className="h-px bg-slate-800 my-1"></div>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteTarget(account);
+                                setOpenMenuId(null);
+                              }}
+                              className="w-full text-left px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-950/30 flex items-center gap-2"
+                            >
+                              <Trash2 size={12} /> PURGE
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                   
-                  {/* Action Menu (Interactive) */}
-                  <div className="relative pointer-events-auto">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setOpenMenuId(openMenuId === account.id ? null : account.id);
-                      }}
-                      className="text-slate-600 hover:text-cyan-400 p-1 hover:bg-cyan-950/30 rounded transition-colors"
-                    >
-                      <MoreVertical size={16} />
-                    </button>
-                    
-                    {openMenuId === account.id && (
-                      <>
-                        <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
-                        <div className="absolute right-0 top-full mt-2 w-32 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-20 py-1 overflow-hidden">
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/dashboard/vault/${account.id}`);
-                            }}
-                            className="w-full text-left px-3 py-2 text-xs font-bold text-slate-400 hover:bg-cyan-950/50 hover:text-cyan-400 flex items-center gap-2"
-                          >
-                            <Eye size={12} /> INSPECT
-                          </button>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEdit(account.id);
-                            }}
-                            className="w-full text-left px-3 py-2 text-xs font-bold text-slate-400 hover:bg-blue-950/50 hover:text-blue-400 flex items-center gap-2"
-                          >
-                            <Pencil size={12} /> MODIFY
-                          </button>
-                          <div className="h-px bg-slate-800 my-1"></div>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteTarget(account);
-                              setOpenMenuId(null);
-                            }}
-                            className="w-full text-left px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-950/30 flex items-center gap-2"
-                          >
-                            <Trash2 size={12} /> PURGE
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Data Preview */}
-                <div className="space-y-3">
-                  <div className="bg-slate-950/50 p-2 rounded border border-slate-800/50 group-hover:border-slate-700 transition-colors">
-                    <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
-                        <Terminal size={10} />
-                        <span className="uppercase tracking-wider text-[9px]">Identifier</span>
+                  {/* Data Preview */}
+                  <div className="space-y-3">
+                    <div className="bg-slate-950/50 p-2 rounded border border-slate-800/50 group-hover:border-slate-700 transition-colors">
+                      <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                          <Terminal size={10} />
+                          <span className="uppercase tracking-wider text-[9px]">Identifier</span>
+                      </div>
+                      <p className="text-xs text-slate-300 font-mono truncate">{account.identifier}</p>
                     </div>
-                    <p className="text-xs text-slate-300 font-mono truncate">{account.identifier}</p>
+
+                    {/* SMART DYNAMIC DETAILS */}
+                    {highlights.map(field => (
+                       <div key={field.key} className="flex justify-between text-[10px] text-slate-500 border-t border-slate-800 pt-2">
+                         <span className="uppercase">{field.label}</span>
+                         <span className="text-cyan-400 font-mono truncate max-w-[50%] text-right">
+                           {(account.details as any)[field.key]}
+                         </span>
+                       </div>
+                    ))}
+
+                    <div className="flex justify-between items-end pt-2">
+                      <span className="text-[9px] text-slate-600 font-mono">
+                          UPD: {formatDate(account.lastUpdated)}
+                      </span>
+                      <span className="text-[9px] font-bold text-slate-700 group-hover:text-cyan-600 transition-colors uppercase tracking-widest">
+                          {account.owner}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Contextual Detail (Game IGN / Bank Acc) */}
-                  {(account.details as any)?.ign && (
-                     <div className="flex justify-between text-[10px] text-slate-500 border-t border-slate-800 pt-2">
-                        <span>IGN_HANDLE</span>
-                        <span className="text-purple-400 font-mono">{(account.details as any).ign}</span>
-                     </div>
-                  )}
-                  {(account.details as any)?.accountNumber && (
-                     <div className="flex justify-between text-[10px] text-slate-500 border-t border-slate-800 pt-2">
-                        <span>ACC_NO</span>
-                        <span className="text-emerald-400 font-mono">{(account.details as any).accountNumber}</span>
-                     </div>
-                  )}
-
-                  <div className="flex justify-between items-end pt-2">
-                    <span className="text-[9px] text-slate-600 font-mono">
-                        UPD: {formatDate(account.lastUpdated)}
-                    </span>
-                    <span className="text-[9px] font-bold text-slate-700 group-hover:text-cyan-600 transition-colors uppercase tracking-widest">
-                        {account.owner}
-                    </span>
-                  </div>
                 </div>
-
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy, collection, getDocs, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { AccountCategory, AccountStatus } from "@/lib/types/schema";
+import { Account, AccountCategory, AccountStatus } from "@/lib/types/schema";
+import { TEMPLATES, TemplateField } from "@/lib/constants/templates";
 import { formatDate } from "@/lib/utils";
 import { 
   Save, 
@@ -26,10 +27,16 @@ import {
   Cpu,
   ChevronRight,
   Database,
-  GraduationCap
+  GraduationCap,
+  ShoppingBag,
+  MoreHorizontal,
+  Settings2,
+  Plus,
+  X,
+  Link as LinkIcon
 } from "lucide-react";
 
-// --- THEME CONFIG (Consistent with Create Page) ---
+// --- THEME CONFIG ---
 const THEME = {
   bg: "bg-slate-950",
   panel: "bg-slate-900/50",
@@ -41,7 +48,7 @@ const THEME = {
   inputBg: "bg-slate-950",
 };
 
-// Opsi Kategori (Updated with EDUCATION)
+// Opsi Kategori
 const CATEGORIES: { label: string; value: AccountCategory; icon: any }[] = [
   { label: "SOCIAL_MEDIA", value: "SOCIAL", icon: Share2 },
   { label: "GAME_HUB", value: "GAME", icon: Gamepad2 },
@@ -50,6 +57,8 @@ const CATEGORIES: { label: string; value: AccountCategory; icon: any }[] = [
   { label: "UTILITY/MAIL", value: "UTILITY", icon: Mail },
   { label: "ENTERTAINMENT", value: "ENTERTAINMENT", icon: Music },
   { label: "EDUCATION", value: "EDUCATION", icon: GraduationCap },
+  { label: "E-COMMERCE", value: "ECOMMERCE", icon: ShoppingBag },
+  { label: "OTHER", value: "OTHER", icon: MoreHorizontal },
 ];
 
 const OWNERS = ["Dicky", "Ibu", "Ayah", "Adik", "Mase", "Keluarga"];
@@ -77,23 +86,62 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
     gender: ""
   });
 
-  // State Detail
-  const [details, setDetails] = useState({
-    ign: "",
-    server: "",
-    rank: "",
-    level: "",
-    accountNumber: "",
-    pinAtm: "",
-    pinApp: "",
-    profileUrl: "",
-    phoneLinked: "",
-    quotaTotalGB: "",
-    // Education Fields
-    institution: "",
-    course: "",
-    progress: ""
-  });
+  // State Dinamis
+  const [details, setDetails] = useState<Record<string, any>>({});
+  const [activeTemplateKeys, setActiveTemplateKeys] = useState<string[]>([]);
+  const [customFields, setCustomFields] = useState<{key: string, value: string}[]>([]);
+
+  // --- SMART PARENT SEARCH STATE ---
+  const [parentType, setParentType] = useState<"EMAIL" | "GAME" | "OTHER">("EMAIL");
+  const [parentSuggestions, setParentSuggestions] = useState<Account[]>([]);
+  const [filteredParents, setFilteredParents] = useState<Account[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestionRef = useRef<HTMLDivElement>(null);
+
+  // Fetch All Accounts for Suggestions
+  useEffect(() => {
+    const fetchParents = async () => {
+      try {
+        const q = query(collection(db, "accounts"), orderBy("serviceName"));
+        const snapshot = await getDocs(q);
+        const accounts = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Account));
+        setParentSuggestions(accounts);
+      } catch (e) { console.error(e); }
+    };
+    fetchParents();
+  }, []);
+
+  // Filter Suggestions Logic
+  useEffect(() => {
+    if (!formData.linkedEmail) {
+      setFilteredParents([]);
+      return;
+    }
+    const search = formData.linkedEmail.toLowerCase();
+    const filtered = parentSuggestions.filter(acc => {
+      let typeMatch = true;
+      if (parentType === "GAME") typeMatch = acc.category === "GAME";
+      else if (parentType === "EMAIL") typeMatch = ["UTILITY", "SOCIAL", "WORK"].includes(acc.category);
+
+      const textMatch = 
+        acc.serviceName.toLowerCase().includes(search) || 
+        acc.identifier.toLowerCase().includes(search);
+      
+      return typeMatch && textMatch;
+    });
+    setFilteredParents(filtered.slice(0, 5));
+  }, [formData.linkedEmail, parentType, parentSuggestions]);
+
+  // Click Outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (suggestionRef.current && !suggestionRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Fetch Data Lama
   useEffect(() => {
@@ -104,9 +152,11 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
 
         if (docSnap.exists()) {
           const data = docSnap.data();
+          const category = (data.category || "SOCIAL") as AccountCategory;
+
           setFormData({
             serviceName: data.serviceName || "",
-            category: data.category || "SOCIAL",
+            category: category,
             identifier: data.identifier || "",
             password: data.password || "",
             linkedEmail: data.linkedEmail || "",
@@ -117,10 +167,44 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
             gender: data.gender || ""
           });
 
-          if (data.details) {
-            setDetails(prev => ({ ...prev, ...data.details }));
+          // SMART DETECT PARENT TYPE (UPDATED: Handle Ambiguity)
+          if (data.linkedEmail) {
+             const qParent = query(collection(db, "accounts"), where("identifier", "==", data.linkedEmail));
+             getDocs(qParent).then(snap => {
+                if (!snap.empty) {
+                   const parents = snap.docs.map(d => d.data());
+                   
+                   // Cek apakah ada parent yang bertipe GAME (Steam) dan EMAIL
+                   const gameParent = parents.find(p => p.category === "GAME");
+                   const emailParent = parents.find(p => ["UTILITY", "SOCIAL", "WORK"].includes(p.category));
+                   
+                   // Jika akun anak adalah GAME dan ada parent GAME (meski identifier sama dengan email), pilih GAME
+                   if (category === "GAME" && gameParent) {
+                      setParentType("GAME");
+                   } else if (emailParent) {
+                      setParentType("EMAIL");
+                   } else {
+                      setParentType("OTHER");
+                   }
+                }
+             }).catch(console.error);
           }
-          
+
+          if (data.details) {
+            const fetchedDetails = data.details;
+            setDetails(fetchedDetails);
+            const templateKeys = (TEMPLATES[category] || []).map(t => t.key);
+            const foundTemplateKeys: string[] = [];
+            const foundCustomFields: {key: string, value: string}[] = [];
+
+            Object.entries(fetchedDetails).forEach(([key, value]) => {
+              if (templateKeys.includes(key)) foundTemplateKeys.push(key);
+              else foundCustomFields.push({ key, value: String(value) });
+            });
+
+            setActiveTemplateKeys(foundTemplateKeys);
+            setCustomFields(foundCustomFields);
+          }
           setLastUpdated(data.lastUpdated);
         } else {
           router.push("/dashboard/vault");
@@ -131,18 +215,55 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
         setLoading(false);
       }
     };
-
     fetchData();
   }, [accountId, router]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    if (name === "linkedEmail") setShowSuggestions(true);
   };
 
-  const handleDetailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setDetails(prev => ({ ...prev, [name]: value }));
+  const selectParent = (acc: Account) => {
+    setFormData(prev => ({ ...prev, linkedEmail: acc.identifier }));
+    
+    // Auto-switch tab based on selection logic
+    if (acc.category === "GAME") setParentType("GAME");
+    else if (["UTILITY", "SOCIAL", "WORK"].includes(acc.category)) setParentType("EMAIL");
+    else setParentType("OTHER");
+
+    setShowSuggestions(false);
+  };
+
+  const handleDetailChange = (key: string, value: any) => {
+    setDetails(prev => ({ ...prev, [key]: value }));
+  };
+
+  const toggleTemplateField = (key: string, isActive: boolean) => {
+    if (isActive) {
+      setActiveTemplateKeys(prev => [...prev, key]);
+    } else {
+      setActiveTemplateKeys(prev => prev.filter(k => k !== key));
+      const newDetails = { ...details };
+      delete newDetails[key];
+      setDetails(newDetails);
+    }
+  };
+
+  const addCustomField = () => {
+    setCustomFields([...customFields, { key: "", value: "" }]);
+  };
+
+  const removeCustomField = (index: number) => {
+    const newFields = [...customFields];
+    newFields.splice(index, 1);
+    setCustomFields(newFields);
+  };
+
+  const handleCustomFieldChange = (index: number, field: 'key' | 'value', val: string) => {
+    const newFields = [...customFields];
+    newFields[index][field] = val;
+    setCustomFields(newFields);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -150,21 +271,30 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
     setSaving(true);
 
     try {
-      const cleanDetails: any = {};
-      Object.entries(details).forEach(([key, value]) => {
-        if (value) cleanDetails[key] = value;
+      const finalDetails: Record<string, any> = { ...details };
+      customFields.forEach(field => {
+        if (field.key && field.value) {
+          const safeKey = field.key.toLowerCase().replace(/\s+/g, '_');
+          finalDetails[safeKey] = field.value;
+        }
+      });
+      Object.keys(finalDetails).forEach(key => {
+        if (finalDetails[key] === "" || finalDetails[key] === undefined) {
+          delete finalDetails[key];
+        }
       });
 
       const payload = {
         ...formData,
         tags: formData.tags.split(",").map(tag => tag.trim()).filter(t => t),
-        details: cleanDetails,
+        details: finalDetails,
         lastUpdated: serverTimestamp(),
       };
 
       await updateDoc(doc(db, "accounts", accountId), payload);
       router.push("/dashboard/vault");
     } catch (error) {
+      console.error(error);
       alert("SYSTEM ERROR: UPDATE_FAILED");
     } finally {
       setSaving(false);
@@ -182,6 +312,10 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
     }
   };
 
+  const currentTemplateFields = TEMPLATES[formData.category] || [];
+  const availableSuggestions = currentTemplateFields.filter(f => !activeTemplateKeys.includes(f.key));
+  const activeFields = currentTemplateFields.filter(f => activeTemplateKeys.includes(f.key));
+
   if (loading) {
     return (
       <div className={`flex h-[80vh] items-center justify-center ${THEME.bg} font-mono`}>
@@ -195,40 +329,19 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
 
   return (
     <div className={`max-w-3xl mx-auto pb-20 space-y-6 font-mono text-slate-200 animate-in fade-in slide-in-from-bottom-4 duration-500`}>
-      
-      {/* --- MODAL DELETE (CYBER STYLE) --- */}
+      {/* MODAL DELETE */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-slate-900 rounded-xl border border-red-900/50 shadow-[0_0_50px_rgba(220,38,38,0.2)] max-w-sm w-full p-6 space-y-4 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-red-600 animate-pulse" />
             <div className="flex items-center gap-3 text-red-500">
-              <div className="p-2 bg-red-950/50 rounded-full border border-red-900">
-                <AlertTriangle size={24} />
-              </div>
+              <div className="p-2 bg-red-950/50 rounded-full border border-red-900"><AlertTriangle size={24} /></div>
               <h3 className="text-lg font-bold tracking-wider">CONFIRM_DELETION</h3>
             </div>
-            <p className="text-slate-400 text-sm border-l-2 border-red-900/50 pl-3">
-              Initiating removal sequence for: <br/>
-              <strong className="text-white">{formData.serviceName}</strong>. 
-              <br/><span className="text-red-400 text-xs mt-1 block">WARNING: THIS ACTION IS IRREVERSIBLE.</span>
-            </p>
+            <p className="text-slate-400 text-sm border-l-2 border-red-900/50 pl-3">Initiating removal sequence for: <br/><strong className="text-white">{formData.serviceName}</strong>. <br/><span className="text-red-400 text-xs mt-1 block">WARNING: THIS ACTION IS IRREVERSIBLE.</span></p>
             <div className="flex gap-3 justify-end pt-2">
-              <button 
-                type="button"
-                onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 rounded border border-transparent hover:border-slate-600 transition-all"
-              >
-                ABORT
-              </button>
-              <button 
-                type="button"
-                onClick={handleDelete}
-                disabled={saving}
-                className="px-4 py-2 text-xs font-bold text-white bg-red-600/80 hover:bg-red-600 rounded border border-red-500/50 shadow-[0_0_15px_rgba(220,38,38,0.4)] flex items-center gap-2 transition-all"
-              >
-                {saving ? <Loader2 size={14} className="animate-spin"/> : <Trash2 size={14} />}
-                EXECUTE
-              </button>
+              <button type="button" onClick={() => setShowDeleteModal(false)} className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 rounded border border-transparent hover:border-slate-600 transition-all">ABORT</button>
+              <button type="button" onClick={handleDelete} disabled={saving} className="px-4 py-2 text-xs font-bold text-white bg-red-600/80 hover:bg-red-600 rounded border border-red-500/50 shadow-[0_0_15px_rgba(220,38,38,0.4)] flex items-center gap-2 transition-all">{saving ? <Loader2 size={14} className="animate-spin"/> : <Trash2 size={14} />} EXECUTE</button>
             </div>
           </div>
         </div>
@@ -237,36 +350,13 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
       {/* HEADER */}
       <div className="flex items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => router.back()} 
-            className="p-2 hover:bg-slate-900 rounded transition-colors group border border-transparent hover:border-slate-800"
-          >
-            <ArrowLeft size={20} className="text-slate-500 group-hover:text-cyan-400 transition-colors" />
-          </button>
+          <button type="button" onClick={() => router.back()} className="p-2 hover:bg-slate-900 rounded transition-colors group border border-transparent hover:border-slate-800"><ArrowLeft size={20} className="text-slate-500 group-hover:text-cyan-400 transition-colors" /></button>
           <div>
-            <h1 className="text-xl font-bold text-white flex items-center gap-2">
-              <Database size={20} className="text-cyan-400" />
-              MODIFY_RECORD
-            </h1>
-            <p className="text-xs text-slate-500 tracking-widest mt-1 flex items-center gap-2">
-              UPDATING ENTRY: {formData.serviceName}
-              {lastUpdated && (
-                 <span className="text-[9px] bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 text-slate-400 flex items-center gap-1">
-                   <Clock size={8} /> {formatDate(lastUpdated)}
-                 </span>
-               )}
-            </p>
+            <h1 className="text-xl font-bold text-white flex items-center gap-2"><Database size={20} className="text-cyan-400" /> MODIFY_RECORD</h1>
+            <p className="text-xs text-slate-500 tracking-widest mt-1 flex items-center gap-2">UPDATING ENTRY: {formData.serviceName} {lastUpdated && (<span className="text-[9px] bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 text-slate-400 flex items-center gap-1"><Clock size={8} /> {formatDate(lastUpdated)}</span>)}</p>
           </div>
         </div>
-        
-        {/* Delete Button */}
-        <button 
-          onClick={() => setShowDeleteModal(true)}
-          className="p-2 text-red-500/70 hover:text-red-400 hover:bg-red-950/30 rounded border border-transparent hover:border-red-900/50 transition-all"
-          title="PURGE_RECORD"
-        >
-          <Trash2 size={18} />
-        </button>
+        <button type="button" onClick={() => setShowDeleteModal(true)} className="p-2 text-red-500/70 hover:text-red-400 hover:bg-red-950/30 rounded border border-transparent hover:border-red-900/50 transition-all" title="PURGE_RECORD"><Trash2 size={18} /></button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -274,72 +364,33 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
         {/* SECTION 1: CORE METADATA */}
         <div className={`p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-6 relative overflow-hidden`}>
           <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500/20" />
-          
           <h3 className="text-sm font-bold text-cyan-400 border-b border-slate-800 pb-2 flex items-center gap-2 uppercase tracking-wider">
-            <Pencil size={16} />
-            CORE_METADATA
+            <Pencil size={16} /> CORE_METADATA
           </h3>
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-1 group">
               <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400 transition-colors">SERVICE_NAME</label>
-              <div className="flex items-center bg-slate-950 border border-slate-800 rounded p-2 focus-within:border-cyan-500/50 focus-within:shadow-[0_0_10px_rgba(6,182,212,0.1)] transition-all">
-                <span className="text-slate-600 mr-2">{'>'}</span>
-                <input 
-                  required
-                  name="serviceName"
-                  value={formData.serviceName}
-                  onChange={handleInputChange}
-                  className="bg-transparent border-none outline-none w-full text-sm placeholder:text-slate-700"
-                />
-              </div>
+              <div className="flex items-center bg-slate-950 border border-slate-800 rounded p-2 focus-within:border-cyan-500/50 transition-all"><span className="text-slate-600 mr-2">{'>'}</span><input required name="serviceName" value={formData.serviceName} onChange={handleInputChange} className="bg-transparent border-none outline-none w-full text-sm placeholder:text-slate-700" /></div>
             </div>
-            
             <div className="space-y-1 group">
               <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400 transition-colors">DATA_CATEGORY</label>
               <div className="relative">
-                <select 
-                  name="category"
-                  value={formData.category}
-                  onChange={handleInputChange}
-                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 appearance-none text-slate-300"
-                >
-                  {CATEGORIES.map(cat => (
-                    <option key={cat.value} value={cat.value}>{cat.label}</option>
-                  ))}
+                <select name="category" value={formData.category} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 appearance-none text-slate-300">
+                  {CATEGORIES.map(cat => <option key={cat.value} value={cat.value}>{cat.label}</option>)}
                 </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600">
-                  <ChevronRight size={14} className="rotate-90" />
-                </div>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600"><ChevronRight size={14} className="rotate-90" /></div>
               </div>
             </div>
-
             <div className="space-y-1 group">
               <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400 transition-colors">ACCESS_OWNER</label>
-              <select 
-                name="owner"
-                value={formData.owner}
-                onChange={handleInputChange}
-                className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 text-slate-300"
-              >
-                {OWNERS.map(owner => (
-                  <option key={owner} value={owner}>{owner}</option>
-                ))}
+              <select name="owner" value={formData.owner} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 text-slate-300">
+                {OWNERS.map(owner => <option key={owner} value={owner}>{owner}</option>)}
               </select>
             </div>
-
             <div className="space-y-1 group">
               <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400 transition-colors">INTEGRITY_STATUS</label>
-              <select 
-                name="status"
-                value={formData.status}
-                onChange={handleInputChange}
-                className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 text-slate-300"
-              >
-                <option value="ACTIVE">ACTIVE [SECURE]</option>
-                <option value="BANNED">BANNED [CRITICAL]</option>
-                <option value="SUSPENDED">SUSPENDED [WARNING]</option>
-                <option value="INACTIVE">INACTIVE [ARCHIVED]</option>
+              <select name="status" value={formData.status} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 text-slate-300">
+                <option value="ACTIVE">ACTIVE [SECURE]</option><option value="BANNED">BANNED [CRITICAL]</option><option value="SUSPENDED">SUSPENDED [WARNING]</option><option value="INACTIVE">INACTIVE [ARCHIVED]</option><option value="SOLD">SOLD [TRANSFERRED]</option>
               </select>
             </div>
           </div>
@@ -348,53 +399,42 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
         {/* SECTION 2: ACCESS CREDENTIALS */}
         <div className={`p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-6 relative overflow-hidden`}>
           <div className="absolute top-0 left-0 w-1 h-full bg-purple-500/20" />
-          
-          <h3 className="text-sm font-bold text-purple-400 border-b border-slate-800 pb-2 flex items-center gap-2 uppercase tracking-wider">
-            <Terminal size={16} />
-            LOGIN_CREDENTIALS
-          </h3>
-
+          <h3 className="text-sm font-bold text-purple-400 border-b border-slate-800 pb-2 flex items-center gap-2 uppercase tracking-wider"><Terminal size={16} /> LOGIN_CREDENTIALS</h3>
           <div className="space-y-4">
             <div className="space-y-1 group">
               <label className="text-xs font-bold text-slate-500 group-focus-within:text-purple-400 transition-colors">IDENTIFIER / USERNAME</label>
-              <div className="flex items-center bg-slate-950 border border-slate-800 rounded p-2 focus-within:border-purple-500/50 focus-within:shadow-[0_0_10px_rgba(168,85,247,0.1)] transition-all">
-                <Mail size={14} className="text-slate-600 mr-2" />
-                <input 
-                  required
-                  name="identifier"
-                  value={formData.identifier}
-                  onChange={handleInputChange}
-                  className="bg-transparent border-none outline-none w-full text-sm placeholder:text-slate-700"
-                />
-              </div>
+              <div className="flex items-center bg-slate-950 border border-slate-800 rounded p-2 focus-within:border-purple-500/50 transition-all"><Mail size={14} className="text-slate-600 mr-2" /><input required name="identifier" value={formData.identifier} onChange={handleInputChange} className="bg-transparent border-none outline-none w-full text-sm placeholder:text-slate-700" /></div>
             </div>
-
             <div className="space-y-1 group">
               <label className="text-xs font-bold text-slate-500 group-focus-within:text-purple-400 transition-colors">ENCRYPTED_KEY (PASSWORD)</label>
-              <div className="flex items-center bg-slate-950 border border-slate-800 rounded p-2 focus-within:border-purple-500/50 focus-within:shadow-[0_0_10px_rgba(168,85,247,0.1)] transition-all">
-                <Cpu size={14} className="text-slate-600 mr-2" />
-                <input 
-                  type="text"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  className="bg-transparent border-none outline-none w-full text-sm text-purple-300 font-mono tracking-wider"
-                />
-              </div>
+              <div className="flex items-center bg-slate-950 border border-slate-800 rounded p-2 focus-within:border-purple-500/50 transition-all"><Cpu size={14} className="text-slate-600 mr-2" /><input type="text" name="password" value={formData.password} onChange={handleInputChange} className="bg-transparent border-none outline-none w-full text-sm text-purple-300 font-mono tracking-wider" placeholder="Input_Secret_Key..." /></div>
             </div>
 
-            <div className="space-y-1 pt-2 border-t border-slate-800 border-dashed group">
-              <label className="text-xs font-bold text-slate-500 flex items-center gap-2 group-focus-within:text-purple-400 transition-colors">
-                <Share2 size={12} />
-                PARENT_NODE_LINK (EMAIL)
-              </label>
-              <input 
-                type="email"
-                name="linkedEmail"
-                value={formData.linkedEmail}
-                onChange={handleInputChange}
-                className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-purple-500/50 placeholder:text-slate-700"
-              />
+            {/* --- SMART PARENT LINK SECTION --- */}
+            <div className="space-y-2 pt-2 border-t border-slate-800 border-dashed group relative" ref={suggestionRef}>
+              <div className="flex justify-between items-end">
+                <label className="text-xs font-bold text-slate-500 flex items-center gap-2 group-focus-within:text-purple-400 transition-colors"><LinkIcon size={12} /> CONNECT_TO_PARENT_NODE</label>
+                <div className="flex bg-slate-950 rounded border border-slate-800 p-0.5">
+                  <button type="button" onClick={() => setParentType("EMAIL")} className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors ${parentType === "EMAIL" ? "bg-slate-800 text-purple-300" : "text-slate-600 hover:text-slate-400"}`}>EMAIL/UTILITY</button>
+                  <button type="button" onClick={() => setParentType("GAME")} className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors ${parentType === "GAME" ? "bg-purple-900/30 text-purple-300" : "text-slate-600 hover:text-slate-400"}`}>STEAM/GAME</button>
+                  <button type="button" onClick={() => setParentType("OTHER")} className={`px-2 py-0.5 text-[10px] font-bold rounded transition-colors ${parentType === "OTHER" ? "bg-slate-800 text-purple-300" : "text-slate-600 hover:text-slate-400"}`}>OTHER</button>
+                </div>
+              </div>
+              <div className="relative">
+                <input type="text" name="linkedEmail" value={formData.linkedEmail} onChange={handleInputChange} onFocus={() => setShowSuggestions(true)} placeholder={parentType === "GAME" ? "Search Steam/Game Account..." : "Search Parent Email..."} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-purple-500/50 placeholder:text-slate-700" autoComplete="off" />
+                {showSuggestions && formData.linkedEmail && filteredParents.length > 0 && (
+                  <div className="absolute bottom-full left-0 w-full mb-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                    <div className="px-3 py-2 text-[10px] font-bold text-slate-500 bg-slate-950 border-b border-slate-800 flex justify-between"><span>SUGGESTED_PARENTS ({parentType})</span><span>RESULTS: {filteredParents.length}</span></div>
+                    {filteredParents.map(acc => (
+                      <button key={acc.id} type="button" onClick={() => selectParent(acc)} className="w-full text-left px-3 py-2 hover:bg-purple-900/20 hover:text-purple-300 transition-colors flex flex-col gap-0.5 border-b border-slate-800/50 last:border-0">
+                        <span className="text-xs font-bold flex items-center gap-2">{acc.serviceName} <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{acc.category}</span></span>
+                        <span className="text-[10px] font-mono text-slate-500 truncate">{acc.identifier}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-600 italic">*Cari dan pilih akun induk (Steam, Google, dll) untuk menghubungkan dalam visualisasi jaringan.</p>
             </div>
           </div>
         </div>
@@ -402,158 +442,77 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
         {/* SECTION 3: EXTENDED ATTRIBUTES */}
         <div className={`p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-6 relative overflow-hidden`}>
           <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500/20" />
-          
-          <h3 className="text-sm font-bold text-emerald-400 border-b border-slate-800 pb-2 flex justify-between uppercase tracking-wider">
-            <span>EXTENDED_ATTRIBUTES [{formData.category}]</span>
-          </h3>
-
+          <div className="flex justify-between items-center border-b border-slate-800 pb-2 mb-4">
+            <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-2 uppercase tracking-wider"><Settings2 size={16} /> EXTENDED_ATTRIBUTES</h3>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">MODE: {formData.category}</span>
+          </div>
+          {availableSuggestions.length > 0 && (
+            <div className="mb-6 animate-in fade-in slide-in-from-top-2 duration-300">
+              <p className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-widest">QUICK_ADD_ATTRIBUTES:</p>
+              <div className="flex flex-wrap gap-2">
+                {availableSuggestions.map(field => (
+                  <button key={field.key} type="button" onClick={() => toggleTemplateField(field.key, true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-700 hover:border-emerald-500/50 hover:bg-emerald-950/30 hover:text-emerald-400 text-xs text-slate-400 transition-all active:scale-95">
+                    <Plus size={12} /> {field.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* UTILITY FIELDS */}
-            {formData.category === "UTILITY" && (
-              <>
-                <div className="space-y-1 group">
-                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400 flex items-center gap-2">
-                    <Calendar size={12} /> DOB_RECORD
-                  </label>
-                  <input 
-                    type="date" 
-                    name="birthDate" 
-                    value={formData.birthDate} 
-                    onChange={handleInputChange} 
-                    className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 text-slate-300"
-                  />
+            <div className="space-y-1 group">
+              <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400 flex items-center gap-2"><Calendar size={12} /> DOB_RECORD</label>
+              <input type="date" name="birthDate" value={formData.birthDate} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 text-slate-300" />
+            </div>
+            <div className="space-y-1 group">
+              <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400 flex items-center gap-2"><User size={12} /> GENDER_ID</label>
+              <select name="gender" value={formData.gender} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 text-slate-300">
+                <option value="">-- SELECT --</option><option value="MALE">MALE</option><option value="FEMALE">FEMALE</option>
+              </select>
+            </div>
+            {activeFields.map((field: TemplateField) => (
+              <div key={field.key} className={`space-y-1 group animate-in zoom-in-95 duration-200 ${field.type === 'textarea' ? 'md:col-span-2' : ''}`}>
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-emerald-500/80 group-focus-within:text-emerald-400 uppercase">{field.label.replace(/\s/g, "_")}</label>
+                  <button type="button" onClick={() => toggleTemplateField(field.key, false)} className="text-slate-600 hover:text-red-400 transition-colors"><X size={12} /></button>
                 </div>
-                <div className="space-y-1 group">
-                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400 flex items-center gap-2">
-                    <User size={12} /> GENDER_ID
-                  </label>
-                  <select 
-                    name="gender" 
-                    value={formData.gender} 
-                    onChange={handleInputChange} 
-                    className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 text-slate-300"
-                  >
-                    <option value="">-- SELECT --</option>
-                    <option value="MALE">MALE</option>
-                    <option value="FEMALE">FEMALE</option>
-                  </select>
-                </div>
-                <div className="space-y-1 md:col-span-2 group">
-                   <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400">RECOVERY_PHONE</label>
-                   <input 
-                    name="phoneLinked" 
-                    value={details.phoneLinked} 
-                    onChange={handleDetailChange} 
-                    className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700" 
-                   />
-                </div>
-              </>
-            )}
-
-            {/* EDUCATION FIELDS (NEW) */}
-            {formData.category === "EDUCATION" && (
-              <>
-                <div className="space-y-1 group">
-                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400">INSTITUTION</label>
-                  <input name="institution" value={details.institution} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 placeholder:text-slate-700" placeholder="Busuu, Udemy..." />
-                </div>
-                <div className="space-y-1 group">
-                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400">COURSE_NAME</label>
-                  <input name="course" value={details.course} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 placeholder:text-slate-700" placeholder="English B2..." />
-                </div>
-                <div className="space-y-1 group">
-                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400">CURRENT_LEVEL</label>
-                  <input name="level" value={details.level} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 placeholder:text-slate-700" placeholder="Intermediate..." />
-                </div>
-                <div className="space-y-1 group">
-                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400">PROGRESS_PCT</label>
-                  <input name="progress" value={details.progress} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 placeholder:text-slate-700" placeholder="50%..." />
-                </div>
-              </>
-            )}
-
-            {/* GAME FIELDS */}
-            {formData.category === "GAME" && (
-              <>
-                <div className="space-y-1 group">
-                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400">IGN_HANDLE</label>
-                  <input name="ign" value={details.ign} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700" />
-                </div>
-                <div className="space-y-1 group">
-                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400">SERVER_REGION</label>
-                  <input name="server" value={details.server} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700" />
-                </div>
-                <div className="space-y-1 group">
-                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400">COMPETITIVE_RANK</label>
-                  <input name="rank" value={details.rank} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700" />
-                </div>
-                <div className="space-y-1 group">
-                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400">LEVEL_INDEX</label>
-                  <input name="level" value={details.level} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700" />
-                </div>
-              </>
-            )}
-
-            {/* FINANCE FIELDS */}
-            {formData.category === "FINANCE" && (
-              <>
-                <div className="space-y-1 group">
-                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400">ACCOUNT_NUMBER</label>
-                  <input name="accountNumber" value={details.accountNumber} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700" />
-                </div>
-                <div className="space-y-1 group">
-                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400">ATM_PIN</label>
-                  <input name="pinAtm" value={details.pinAtm} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700" />
-                </div>
-                <div className="space-y-1 group">
-                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400">APP_PIN</label>
-                  <input name="pinApp" value={details.pinApp} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700" />
-                </div>
-              </>
-            )}
-
-            {/* SOCIAL FIELDS */}
-            {formData.category === "SOCIAL" && (
-              <>
-                <div className="space-y-1 md:col-span-2 group">
-                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400">PROFILE_URL</label>
-                  <input name="profileUrl" value={details.profileUrl} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700" />
-                </div>
-                <div className="space-y-1 group">
-                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400">LINKED_MOBILE</label>
-                  <input name="phoneLinked" value={details.phoneLinked} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700" />
-                </div>
-              </>
-            )}
-
+                {field.type === 'select' ? (
+                  <div className="relative">
+                    <select value={details[field.key] || ""} onChange={(e) => handleDetailChange(field.key, e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 text-slate-300 appearance-none">
+                      <option value="">-- Select {field.label} --</option>{field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600"><ChevronRight size={14} className="rotate-90" /></div>
+                  </div>
+                ) : field.type === 'textarea' ? (
+                  <textarea value={details[field.key] || ""} onChange={(e) => handleDetailChange(field.key, e.target.value)} placeholder={field.placeholder || `Enter ${field.label}`} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700 h-24 resize-none" />
+                ) : (
+                  <input type={field.type} value={details[field.key] || ""} onChange={(e) => handleDetailChange(field.key, e.target.value)} placeholder={field.placeholder || `Enter ${field.label}`} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700" />
+                )}
+              </div>
+            ))}
             <div className="space-y-1 md:col-span-2 group">
               <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400">DATA_TAGS (COMMA_SEPARATED)</label>
-              <input 
-                name="tags" 
-                value={formData.tags}
-                onChange={handleInputChange} 
-                className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700" 
-              />
+              <input name="tags" value={formData.tags} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700" />
+            </div>
+          </div>
+          <div className="pt-4 border-t border-slate-800 border-dashed">
+            <h4 className="text-xs font-bold text-slate-500 mb-3 flex items-center gap-2"><Plus size={12} /> CUSTOM_ATTRIBUTES (UNLIMITED)</h4>
+            <div className="space-y-3">
+              {customFields.map((field, index) => (
+                <div key={index} className="flex gap-2 animate-in fade-in slide-in-from-left-2 duration-300">
+                  <input placeholder="Field Name" value={field.key} onChange={(e) => handleCustomFieldChange(index, 'key', e.target.value)} className="flex-1 bg-slate-900 border border-slate-800 rounded p-2 text-xs outline-none focus:border-emerald-500/50 text-slate-300 placeholder:text-slate-600" />
+                  <input placeholder="Value" value={field.value} onChange={(e) => handleCustomFieldChange(index, 'value', e.target.value)} className="flex-[2] bg-slate-900 border border-slate-800 rounded p-2 text-xs outline-none focus:border-emerald-500/50 text-slate-300 placeholder:text-slate-600" />
+                  <button type="button" onClick={() => removeCustomField(index)} className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-900/20 rounded transition-colors"><Trash2 size={14} /></button>
+                </div>
+              ))}
+              <button type="button" onClick={addCustomField} className="text-xs text-cyan-500 hover:text-cyan-400 flex items-center gap-1 hover:underline underline-offset-4"><Plus size={12} /> ADD_NEW_FIELD</button>
             </div>
           </div>
         </div>
 
         <div className="flex gap-4 pt-4">
-          <button 
-            type="button" 
-            onClick={() => router.back()} 
-            className="flex-1 px-4 py-3 border border-slate-800 text-slate-500 hover:text-white rounded hover:bg-slate-900 transition-colors text-xs font-bold tracking-wider"
-          >
-            ABORT
-          </button>
-          <button 
-            type="submit" 
-            disabled={saving} 
-            className="flex-[2] bg-cyan-900/30 text-cyan-400 border border-cyan-500/30 px-4 py-3 rounded font-bold hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] transition-all shadow-md flex justify-center items-center gap-2 text-xs tracking-wider"
-          >
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            COMMIT_CHANGES
+          <button type="button" onClick={() => router.back()} className="flex-1 px-4 py-3 border border-slate-800 text-slate-500 hover:text-white rounded hover:bg-slate-900 transition-colors text-xs font-bold tracking-wider">ABORT</button>
+          <button type="submit" disabled={saving} className="flex-[2] bg-cyan-900/30 text-cyan-400 border border-cyan-500/30 px-4 py-3 rounded font-bold hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] transition-all shadow-md flex justify-center items-center gap-2 text-xs tracking-wider">
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} COMMIT_CHANGES
           </button>
         </div>
       </form>
