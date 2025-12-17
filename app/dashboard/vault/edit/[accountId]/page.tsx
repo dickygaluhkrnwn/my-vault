@@ -26,7 +26,7 @@ import {
   Cpu,
   ChevronRight,
   Database,
-  ShieldAlert
+  GraduationCap
 } from "lucide-react";
 
 // --- THEME CONFIG (Consistent with Create Page) ---
@@ -41,7 +41,7 @@ const THEME = {
   inputBg: "bg-slate-950",
 };
 
-// Opsi Kategori
+// Opsi Kategori (Updated with EDUCATION)
 const CATEGORIES: { label: string; value: AccountCategory; icon: any }[] = [
   { label: "SOCIAL_MEDIA", value: "SOCIAL", icon: Share2 },
   { label: "GAME_HUB", value: "GAME", icon: Gamepad2 },
@@ -49,6 +49,7 @@ const CATEGORIES: { label: string; value: AccountCategory; icon: any }[] = [
   { label: "WORKSTATION", value: "WORK", icon: Briefcase },
   { label: "UTILITY/MAIL", value: "UTILITY", icon: Mail },
   { label: "ENTERTAINMENT", value: "ENTERTAINMENT", icon: Music },
+  { label: "EDUCATION", value: "EDUCATION", icon: GraduationCap },
 ];
 
 const OWNERS = ["Dicky", "Ibu", "Ayah", "Adik", "Mase", "Keluarga"];
@@ -88,6 +89,10 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
     profileUrl: "",
     phoneLinked: "",
     quotaTotalGB: "",
+    // Education Fields
+    institution: "",
+    course: "",
+    progress: ""
   });
 
   // Fetch Data Lama
@@ -442,6 +447,28 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
                     onChange={handleDetailChange} 
                     className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700" 
                    />
+                </div>
+              </>
+            )}
+
+            {/* EDUCATION FIELDS (NEW) */}
+            {formData.category === "EDUCATION" && (
+              <>
+                <div className="space-y-1 group">
+                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400">INSTITUTION</label>
+                  <input name="institution" value={details.institution} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 placeholder:text-slate-700" placeholder="Busuu, Udemy..." />
+                </div>
+                <div className="space-y-1 group">
+                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400">COURSE_NAME</label>
+                  <input name="course" value={details.course} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 placeholder:text-slate-700" placeholder="English B2..." />
+                </div>
+                <div className="space-y-1 group">
+                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400">CURRENT_LEVEL</label>
+                  <input name="level" value={details.level} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 placeholder:text-slate-700" placeholder="Intermediate..." />
+                </div>
+                <div className="space-y-1 group">
+                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400">PROGRESS_PCT</label>
+                  <input name="progress" value={details.progress} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 placeholder:text-slate-700" placeholder="50%..." />
                 </div>
               </>
             )}

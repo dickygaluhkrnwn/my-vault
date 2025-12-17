@@ -34,7 +34,11 @@ import {
   Terminal,
   Cpu,
   Activity,
-  HardDrive
+  HardDrive,
+  GraduationCap,
+  BookOpen,
+  Award,
+  Percent
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
@@ -77,6 +81,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
       case "WORK": return <Briefcase size={24} className="text-amber-400" />;
       case "UTILITY": return <Mail size={24} className="text-orange-400" />;
       case "ENTERTAINMENT": return <Music size={24} className="text-pink-400" />;
+      case "EDUCATION": return <GraduationCap size={24} className="text-yellow-400" />;
       default: return <Lock size={24} className="text-slate-400" />;
     }
   };
@@ -292,6 +297,24 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
                   {account.gender && <DetailRow label="GENDER_ID" value={account.gender} icon={<User size={14}/>} />}
                   {account.details && 'phoneLinked' in account.details && (account.details as any).phoneLinked && (
                     <DetailRow label="RECOVERY_COMMS" value={(account.details as any).phoneLinked} icon={<Smartphone size={14}/>} onCopy={() => handleCopy((account.details as any).phoneLinked, 'phone')} copied={copiedField === 'phone'} />
+                  )}
+                </>
+              )}
+
+              {/* EDUCATION SPECIFIC (NEW) */}
+              {account.category === "EDUCATION" && account.details && (
+                <>
+                  {'institution' in account.details && (account.details as any).institution && (
+                    <DetailRow label="INSTITUTION" value={(account.details as any).institution} icon={<GraduationCap size={14}/>} />
+                  )}
+                  {'course' in account.details && (account.details as any).course && (
+                    <DetailRow label="COURSE_MODULE" value={(account.details as any).course} icon={<BookOpen size={14}/>} />
+                  )}
+                  {'level' in account.details && (account.details as any).level && (
+                    <DetailRow label="CURRENT_LEVEL" value={(account.details as any).level} icon={<Award size={14}/>} />
+                  )}
+                  {'progress' in account.details && (account.details as any).progress && (
+                    <DetailRow label="PROGRESS_PCT" value={(account.details as any).progress} icon={<Percent size={14}/>} />
                   )}
                 </>
               )}

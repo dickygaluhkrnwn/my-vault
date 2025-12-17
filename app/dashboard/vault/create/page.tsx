@@ -21,7 +21,8 @@ import {
   Terminal,
   Cpu,
   ChevronRight,
-  Database
+  Database,
+  GraduationCap
 } from "lucide-react";
 
 // --- THEME CONFIG ---
@@ -36,7 +37,7 @@ const THEME = {
   inputBg: "bg-slate-950",
 };
 
-// Opsi Kategori
+// Opsi Kategori (Updated with EDUCATION)
 const CATEGORIES: { label: string; value: AccountCategory; icon: any }[] = [
   { label: "SOCIAL_MEDIA", value: "SOCIAL", icon: Share2 },
   { label: "GAME_HUB", value: "GAME", icon: Gamepad2 },
@@ -44,6 +45,7 @@ const CATEGORIES: { label: string; value: AccountCategory; icon: any }[] = [
   { label: "WORKSTATION", value: "WORK", icon: Briefcase },
   { label: "UTILITY/MAIL", value: "UTILITY", icon: Mail },
   { label: "ENTERTAINMENT", value: "ENTERTAINMENT", icon: Music },
+  { label: "EDUCATION", value: "EDUCATION", icon: GraduationCap },
 ];
 
 // Opsi Pemilik
@@ -67,7 +69,7 @@ export default function CreateAccountPage() {
     gender: ""     
   });
 
-  // State Detail
+  // State Detail (Expanded for Education)
   const [details, setDetails] = useState({
     ign: "",
     server: "",
@@ -79,6 +81,10 @@ export default function CreateAccountPage() {
     profileUrl: "",
     phoneLinked: "",
     quotaTotalGB: "",
+    // Education Fields
+    institution: "",
+    course: "",
+    progress: ""
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -329,6 +335,28 @@ export default function CreateAccountPage() {
               </>
             )}
 
+            {/* EDUCATION FIELDS */}
+            {formData.category === "EDUCATION" && (
+              <>
+                <div className="space-y-1 group">
+                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400">INSTITUTION</label>
+                  <input name="institution" value={details.institution} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 placeholder:text-slate-700" placeholder="Busuu, Udemy..." />
+                </div>
+                <div className="space-y-1 group">
+                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400">COURSE_NAME</label>
+                  <input name="course" value={details.course} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 placeholder:text-slate-700" placeholder="English B2..." />
+                </div>
+                <div className="space-y-1 group">
+                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400">CURRENT_LEVEL</label>
+                  <input name="level" value={details.level} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 placeholder:text-slate-700" placeholder="Intermediate..." />
+                </div>
+                <div className="space-y-1 group">
+                  <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400">PROGRESS_PCT</label>
+                  <input name="progress" value={details.progress} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 placeholder:text-slate-700" placeholder="50%..." />
+                </div>
+              </>
+            )}
+
             {/* GAME FIELDS */}
             {formData.category === "GAME" && (
               <>
@@ -381,6 +409,20 @@ export default function CreateAccountPage() {
                   <input name="phoneLinked" value={details.phoneLinked} onChange={handleDetailChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 placeholder:text-slate-700" placeholder="08..." />
                 </div>
               </>
+            )}
+
+            {/* ENTERTAINMENT FIELDS */}
+            {formData.category === "ENTERTAINMENT" && (
+              <div className="space-y-1 md:col-span-2 group">
+                <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400">PROFILE_URL</label>
+                <input 
+                  name="profileUrl" 
+                  value={details.profileUrl} 
+                  onChange={handleDetailChange} 
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-cyan-500/50 placeholder:text-slate-700" 
+                  placeholder="https://open.spotify.com/user/..." 
+                />
+              </div>
             )}
 
             <div className="space-y-1 md:col-span-2 group">

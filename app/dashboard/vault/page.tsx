@@ -34,7 +34,8 @@ import {
   Terminal,
   Database,
   Filter,
-  Cpu
+  Cpu,
+  GraduationCap
 } from "lucide-react";
 import { onAuthStateChanged } from "firebase/auth";
 import { cn, formatDate } from "@/lib/utils";
@@ -59,6 +60,7 @@ const getCategoryIcon = (category: AccountCategory) => {
     case "WORK": return <Briefcase size={20} className="text-amber-400" />;
     case "UTILITY": return <Mail size={20} className="text-orange-400" />;
     case "ENTERTAINMENT": return <Music size={20} className="text-pink-400" />;
+    case "EDUCATION": return <GraduationCap size={20} className="text-yellow-400" />;
     default: return <Lock size={20} className="text-slate-400" />;
   }
 };
@@ -71,6 +73,7 @@ const CATEGORIES: { label: string; value: AccountCategory | "ALL" }[] = [
   { label: "WORK", value: "WORK" },
   { label: "UTILITY", value: "UTILITY" },
   { label: "MEDIA", value: "ENTERTAINMENT" },
+  { label: "EDUCATION", value: "EDUCATION" }, // NEW FILTER
 ];
 
 // --- KOMPONEN LOGIKA UTAMA ---

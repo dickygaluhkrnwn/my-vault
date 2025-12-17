@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { collection, query, onSnapshot, orderBy } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { Account, AccountCategory } from "@/lib/types/schema";
+import { useRouter } from "next/navigation"; 
 import { 
   Network, 
   Gamepad2, 
@@ -20,7 +21,9 @@ import {
   Activity,
   Shield,
   Wifi,
-  Search
+  Search,
+  ExternalLink,
+  GraduationCap
 } from "lucide-react";
 import { onAuthStateChanged } from "firebase/auth";
 
@@ -45,6 +48,7 @@ const getCategoryIcon = (category: AccountCategory, size = 16) => {
     case "WORK": return <Briefcase size={size} className="text-amber-400" />;
     case "UTILITY": return <Mail size={size} className="text-orange-400" />;
     case "ENTERTAINMENT": return <Music size={size} className="text-pink-400" />;
+    case "EDUCATION": return <GraduationCap size={size} className="text-yellow-400" />;
     default: return <Lock size={size} className="text-slate-400" />;
   }
 };
@@ -55,6 +59,7 @@ interface EmailGroup {
 }
 
 export default function ConnectivityPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<EmailGroup[]>([]);
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
@@ -113,6 +118,11 @@ export default function ConnectivityPage() {
   }, [selectedEmail]);
 
   const activeGroup = groups.find(g => g.email === selectedEmail);
+
+  // Fungsi navigasi ke detail
+  const handleNodeClick = (accountId: string) => {
+    router.push(`/dashboard/vault/${accountId}`);
+  };
 
   // --- LOADING SCREEN (TERMINAL STYLE) ---
   if (loading) {
@@ -228,29 +238,33 @@ export default function ConnectivityPage() {
             )}
         </div>
 
-        {/* RIGHT PANEL: VISUALIZER (CANVAS AREA) */}
-        <div className={`flex-1 rounded-xl border ${THEME.border} bg-slate-900/80 relative overflow-hidden flex items-center justify-center min-h-[500px]`}>
-            {/* Grid Background Effect */}
-            <div className="absolute inset-0 opacity-10" 
-                 style={{ 
-                     backgroundImage: 'linear-gradient(#06b6d4 1px, transparent 1px), linear-gradient(90deg, #06b6d4 1px, transparent 1px)', 
-                     backgroundSize: '40px 40px' 
-                 }} 
-            />
+        {/* RIGHT PANEL: VISUALIZER */}
+        <div className="flex-1 flex flex-col gap-6">
             
-            {/* Radar Scan Effect */}
-            <div className="absolute inset-0 rounded-full border border-cyan-500/5 w-[800px] h-[800px] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-[spin_10s_linear_infinite]" />
-            <div className="absolute inset-0 rounded-full border border-cyan-500/10 w-[500px] h-[500px] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+            {/* VISUALIZER CANVAS */}
+            <div className={`rounded-xl border ${THEME.border} bg-slate-900/80 relative overflow-hidden flex items-center justify-center flex-1 min-h-[500px]`}>
+                {/* Grid Background Effect */}
+                <div className="absolute inset-0 opacity-10 pointer-events-none" 
+                    style={{ 
+                        backgroundImage: 'linear-gradient(#06b6d4 1px, transparent 1px), linear-gradient(90deg, #06b6d4 1px, transparent 1px)', 
+                        backgroundSize: '40px 40px' 
+                    }} 
+                />
+                
+                {/* Radar Scan Effect */}
+                <div className="absolute inset-0 rounded-full border border-cyan-500/5 w-[800px] h-[800px] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-[spin_10s_linear_infinite] pointer-events-none" />
+                <div className="absolute inset-0 rounded-full border border-cyan-500/10 w-[500px] h-[500px] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
 
-            {/* VISUALIZATION CONTENT */}
-            {activeGroup ? (
-                <TopologyViewer group={activeGroup} />
-            ) : (
-                <div className="flex flex-col items-center text-slate-600 animate-pulse">
-                    <Shield size={48} className="mb-4 opacity-20" />
-                    <p className="text-xs tracking-widest">WAITING FOR TARGET SELECTION...</p>
-                </div>
-            )}
+                {/* VISUALIZATION CONTENT */}
+                {activeGroup ? (
+                    <TopologyViewer group={activeGroup} onNodeClick={handleNodeClick} />
+                ) : (
+                    <div className="flex flex-col items-center text-slate-600 animate-pulse">
+                        <Shield size={48} className="mb-4 opacity-20" />
+                        <p className="text-xs tracking-widest">WAITING FOR TARGET SELECTION...</p>
+                    </div>
+                )}
+            </div>
         </div>
 
       </div>
@@ -259,7 +273,7 @@ export default function ConnectivityPage() {
 }
 
 // --- SUB-COMPONENT: TOPOLOGY VIEWER (THE COOL PART) ---
-function TopologyViewer({ group }: { group: EmailGroup }) {
+function TopologyViewer({ group, onNodeClick }: { group: EmailGroup, onNodeClick: (id: string) => void }) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [dimensions, setDimensions] = useState({ w: 0, h: 0 });
 
@@ -317,7 +331,7 @@ function TopologyViewer({ group }: { group: EmailGroup }) {
 
             {/* CENTER NODE (HUB) */}
             <div 
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center group cursor-pointer"
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center group cursor-default"
             >
                 <div className="w-16 h-16 rounded-full bg-slate-950 border-2 border-cyan-500 shadow-[0_0_30px_rgba(6,182,212,0.4)] flex items-center justify-center relative overflow-hidden group-hover:scale-110 transition-transform duration-300">
                     <div className="absolute inset-0 bg-cyan-500/20 animate-pulse" />
@@ -328,7 +342,7 @@ function TopologyViewer({ group }: { group: EmailGroup }) {
                 </div>
             </div>
 
-            {/* CHILD NODES (APPS) */}
+            {/* CHILD NODES (APPS) - CLICKABLE */}
             {group.apps.map((app, index) => {
                 const angle = (index * 2 * Math.PI) / group.apps.length;
                 // Posisi CSS (offset dari center)
@@ -338,20 +352,27 @@ function TopologyViewer({ group }: { group: EmailGroup }) {
                 return (
                     <div 
                         key={app.id}
-                        className="absolute z-10 flex flex-col items-center justify-center w-24 h-24 hover:z-30 transition-all duration-300 group/node"
+                        onClick={() => onNodeClick(app.id)} // AKSI KLIK DI SINI
+                        className="absolute z-10 flex flex-col items-center justify-center w-24 h-24 hover:z-30 transition-all duration-300 group/node cursor-pointer" // Tambahkan cursor-pointer
                         style={{ 
-                            top: `calc(${50 + 35 * Math.sin(angle)}% - 3rem)`, // 35% radius, -3rem untuk centering (half size)
+                            top: `calc(${50 + 35 * Math.sin(angle)}% - 3rem)`, 
                             left: `calc(${50 + 35 * Math.cos(angle)}% - 3rem)` 
                         }}
                     >
-                        <div className={`w-10 h-10 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center shadow-lg group-hover/node:border-cyan-400 group-hover/node:shadow-[0_0_15px_rgba(34,211,238,0.5)] transition-all relative
+                        <div className={`w-10 h-10 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center shadow-lg group-hover/node:border-cyan-400 group-hover/node:shadow-[0_0_15px_rgba(34,211,238,0.5)] group-hover/node:scale-110 transition-all relative
                             ${app.category === 'GAME' ? 'group-hover/node:border-purple-500' : ''}
                             ${app.category === 'FINANCE' ? 'group-hover/node:border-emerald-500' : ''}
+                            ${app.category === 'EDUCATION' ? 'group-hover/node:border-yellow-500' : ''}
                         `}>
                             {getCategoryIcon(app.category, 18)}
                             
                             {/* Status Dot */}
                             <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full border border-slate-900" />
+                            
+                            {/* External Link Icon on Hover */}
+                            <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center opacity-0 group-hover/node:opacity-100 transition-opacity">
+                                <ExternalLink size={12} className="text-white" />
+                            </div>
                         </div>
                         
                         {/* Tooltip Label */}
@@ -360,6 +381,9 @@ function TopologyViewer({ group }: { group: EmailGroup }) {
                                 <p className="text-xs font-bold text-white truncate">{app.serviceName}</p>
                                 <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate max-w-[100px]">{app.identifier}</p>
                                 <p className="text-[9px] text-cyan-500 mt-1 uppercase tracking-wider">{app.category}</p>
+                                <p className="text-[9px] text-emerald-400 mt-1 border-t border-slate-800 pt-1 flex items-center gap-1">
+                                    {'>'} CLICK_TO_INSPECT
+                                </p>
                             </div>
                         </div>
                     </div>

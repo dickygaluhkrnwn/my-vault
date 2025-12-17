@@ -5,7 +5,8 @@ export type AccountCategory =
   | "FINANCE"   
   | "WORK"      
   | "UTILITY"   
-  | "ENTERTAINMENT";
+  | "ENTERTAINMENT"
+  | "EDUCATION"; // Kategori Baru ditambahkan
 
 // Status akun
 export type AccountStatus = "ACTIVE" | "BANNED" | "SUSPENDED" | "INACTIVE";
@@ -47,6 +48,14 @@ export interface StorageDetails {
   fileType?: string;
 }
 
+// Interface Baru untuk Edukasi
+export interface EducationDetails {
+  institution?: string; // Nama Platform/Sekolah (misal: Busuu, Ruangguru)
+  course?: string;      // Materi (misal: English, Coding)
+  level?: string;       // Level (misal: B2, Intermediate)
+  progress?: string;    // Progress (misal: 50%)
+}
+
 // --- MAIN ACCOUNT TYPE (UPDATED) ---
 export interface Account {
   id: string;
@@ -68,8 +77,8 @@ export interface Account {
   status: AccountStatus;
   tags: string[];
   
-  // Menggunakan Union Type untuk details agar fleksibel
-  details?: GameDetails | FinanceDetails | SocialDetails | StorageDetails | any;
+  // Update Union Type dengan EducationDetails
+  details?: GameDetails | FinanceDetails | SocialDetails | StorageDetails | EducationDetails | any;
   
   lastUpdated: Date;
   createdAt: Date;
