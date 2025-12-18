@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
@@ -14,7 +15,8 @@ import {
   ChevronRight,
   Terminal,
   Activity,
-  X // Icon Close untuk Mobile
+  X, // Icon Close untuk Mobile
+  Download // Icon untuk Install App
 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
@@ -57,6 +59,34 @@ interface SidebarProps {
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      // Mencegah browser menampilkan prompt default
+      e.preventDefault();
+      // Simpan event untuk dipicu nanti
+      setInstallPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handler);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!installPrompt) return;
+    // Tampilkan prompt install
+    installPrompt.prompt();
+    // Tunggu respon user
+    const { outcome } = await installPrompt.userChoice;
+    // Jika user menginstall, kita bisa clear prompt nya (opsional)
+    if (outcome === 'accepted') {
+      setInstallPrompt(null);
+    }
+  };
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -93,7 +123,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </div>
             <div className="flex flex-col">
               <span className="font-bold text-base lg:text-lg tracking-widest text-slate-200">
-                MY_VAULT
+                VAULT_ID
               </span>
               <span className="text-[9px] text-cyan-500 uppercase tracking-widest flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
@@ -154,8 +184,19 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         </nav>
 
         {/* System Status / Footer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/50">
-          <div className="mb-4 px-2 py-2 bg-slate-900 rounded border border-slate-800 flex items-center justify-between">
+        <div className="p-4 border-t border-slate-800 bg-slate-950/50 space-y-2">
+          {/* Install App Button (Visible only if installPrompt exists) */}
+          {installPrompt && (
+            <button
+              onClick={handleInstallClick}
+              className="flex w-full items-center gap-3 px-4 py-2 text-xs font-bold text-cyan-400 bg-cyan-950/30 hover:bg-cyan-900/40 border border-cyan-500/20 hover:border-cyan-500/40 rounded-lg transition-all group tracking-wider"
+            >
+              <Download size={16} className="group-hover:animate-bounce" />
+              INSTALL_APP
+            </button>
+          )}
+
+          <div className="px-2 py-2 bg-slate-900 rounded border border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                   <Activity size={14} className="text-emerald-500" />
                   <span className="text-[10px] text-slate-400 font-bold">SYSTEM_STATUS</span>
