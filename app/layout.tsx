@@ -5,13 +5,13 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "My Private Vault",
+  title: "Vault ID",
   description: "Secure Identity & Access Management System",
   manifest: "/manifest.json", // Mendaftarkan file manifest
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "My Vault",
+    title: "Vault ID",
   },
 };
 
@@ -31,7 +31,8 @@ export default function RootLayout({
   return (
     <html lang="id" className="dark">
       <head>
-        <link rel="icon" href="/globe.svg" />
+        {/* Menggunakan icon-192.png sebagai favicon utama agar konsisten */}
+        <link rel="icon" href="/icon-192.png" />
       </head>
       <body className={`${inter.className} bg-slate-950 text-slate-200 min-h-screen antialiased selection:bg-cyan-500/30 selection:text-cyan-200`}>
         {/* Sidebar SUDAH DIHAPUS DARI SINI dan dipindah ke dashboard/layout.tsx */}
