@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { Account, AccountCategory } from "@/lib/types/schema";
-import { TEMPLATES } from "@/lib/constants/templates"; // Import Brain kita
+import { TEMPLATES } from "@/lib/constants/templates"; 
 import { 
   Plus, 
   Search, 
@@ -119,7 +119,7 @@ function VaultContent() {
           ...d,
           createdAt: d.createdAt?.toDate ? d.createdAt.toDate() : new Date(),
           lastUpdated: d.lastUpdated?.toDate ? d.lastUpdated.toDate() : new Date(),
-          details: d.details || {} // Pastikan details selalu object
+          details: d.details || {} 
         };
       }) as Account[];
       setAccounts(data);
@@ -131,11 +131,10 @@ function VaultContent() {
     return () => unsubscribe();
   }, [user]);
 
-  // 3. Smart Filter Logic (Updated Phase 3)
+  // 3. Smart Filter Logic
   const filteredAccounts = accounts.filter((acc) => {
     const matchesCategory = selectedCategory === "ALL" || acc.category === selectedCategory;
     
-    // Deep Search: Cari di Service Name, Identifier, ATAU values di dalam Details
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch = 
       acc.serviceName?.toLowerCase().includes(searchLower) || 
@@ -153,7 +152,6 @@ function VaultContent() {
 
   const clearOwnerFilter = () => router.push("/dashboard/vault");
 
-  // --- FUNGSI ACTION ---
   const handleEdit = (id: string) => {
     router.push(`/dashboard/vault/edit/${id}`);
   };
@@ -172,13 +170,11 @@ function VaultContent() {
   return (
     <div className={`min-h-screen ${THEME.bg} text-slate-200 font-mono relative space-y-6 animate-in fade-in duration-500`}>
       
-      {/* --- MODAL KONFIRMASI DELETE (CYBER STYLE) --- */}
+      {/* --- MODAL KONFIRMASI DELETE --- */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-slate-900 rounded-xl border border-red-900/50 shadow-[0_0_50px_rgba(220,38,38,0.2)] max-w-sm w-full p-6 space-y-4 relative overflow-hidden">
-            {/* Red Scanline */}
             <div className="absolute top-0 left-0 w-full h-1 bg-red-600 animate-pulse" />
-            
             <div className="flex items-center gap-3 text-red-500">
               <div className="p-2 bg-red-950/50 rounded-full border border-red-900">
                 <AlertTriangle size={24} />
@@ -212,7 +208,7 @@ function VaultContent() {
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+          <h1 className="text-xl md:text-2xl font-bold text-white flex items-center gap-3">
             <Database className="text-cyan-400" />
             DATABASE_VAULT
           </h1>
@@ -222,17 +218,16 @@ function VaultContent() {
         </div>
         <Link 
           href="/dashboard/vault/create" 
-          className="flex items-center gap-2 bg-cyan-900/20 text-cyan-400 px-4 py-2 rounded border border-cyan-500/30 hover:bg-cyan-500/20 hover:border-cyan-400 hover:shadow-[0_0_15px_rgba(34,211,238,0.3)] transition-all text-xs font-bold tracking-wider group"
+          className="flex items-center gap-2 bg-cyan-900/20 text-cyan-400 px-4 py-2 rounded border border-cyan-500/30 hover:bg-cyan-500/20 hover:border-cyan-400 hover:shadow-[0_0_15px_rgba(34,211,238,0.3)] transition-all text-xs font-bold tracking-wider group w-full md:w-auto justify-center"
         >
           <Plus size={16} className="group-hover:rotate-90 transition-transform" />
           NEW_ENTRY
         </Link>
       </div>
 
-      {/* SEARCH & FILTER BAR */}
-      <div className={`p-4 rounded-xl border ${THEME.border} bg-slate-900/30 backdrop-blur-sm space-y-4 sticky top-4 z-10 shadow-xl`}>
+      {/* SEARCH & FILTER BAR (STICKY ADJUSTED) */}
+      <div className={`p-4 rounded-xl border ${THEME.border} bg-slate-900/80 backdrop-blur-md space-y-4 sticky top-[4.5rem] lg:top-4 z-20 shadow-xl transition-all`}>
         
-        {/* Banner Filter Owner */}
         {ownerFilter && (
             <div className="bg-blue-950/30 border border-blue-500/30 rounded p-2 px-4 flex items-center justify-between text-blue-300 text-xs mb-2">
             <div className="flex items-center gap-2">
@@ -261,8 +256,8 @@ function VaultContent() {
                 </div>
             </div>
 
-            {/* Filter Toggles */}
-            <div className="flex gap-2 overflow-x-auto pb-2 lg:pb-0 custom-scrollbar">
+            {/* Filter Toggles (Horizontal Scroll on Mobile) */}
+            <div className="flex gap-2 overflow-x-auto pb-2 lg:pb-0 custom-scrollbar -mx-4 px-4 lg:mx-0 lg:px-0">
                 {CATEGORIES.map((cat) => (
                     <button
                         key={cat.value}
@@ -302,9 +297,7 @@ function VaultContent() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20">
           {filteredAccounts.map((account) => {
-            // SMART CARD LOGIC: Ambil 2 field terpenting dari Template berdasarkan kategori akun
             const templateFields = TEMPLATES[account.category] || [];
-            // Filter field yang punya value di detail akun ini, ambil max 2
             const highlights = templateFields
               .filter(field => (account.details as any)?.[field.key])
               .slice(0, 2);
@@ -312,10 +305,8 @@ function VaultContent() {
             return (
               <div key={account.id} className="group relative bg-slate-900/40 border border-slate-800 hover:border-cyan-500/30 rounded-xl overflow-hidden transition-all duration-300 hover:shadow-[0_0_20px_rgba(6,182,212,0.05)] hover:-translate-y-1">
                 
-                {/* Scanline Effect on Hover */}
                 <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/0 via-cyan-500/5 to-cyan-500/0 opacity-0 group-hover:opacity-100 translate-y-[-100%] group-hover:translate-y-[100%] transition-all duration-1000 pointer-events-none" />
 
-                {/* Link Wrapper */}
                 <Link href={`/dashboard/vault/${account.id}`} className="absolute inset-0 z-0" />
 
                 <div className="p-5 relative z-10 pointer-events-none">
@@ -332,13 +323,11 @@ function VaultContent() {
                           <span className="text-[9px] text-slate-500 font-bold bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 uppercase tracking-wider">
                               {account.category}
                           </span>
-                          {/* Status Dot */}
                           <span className={`w-1.5 h-1.5 rounded-full ${account.status === 'ACTIVE' ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-red-500'}`} />
                         </div>
                       </div>
                     </div>
                     
-                    {/* Action Menu (Interactive) */}
                     <div className="relative pointer-events-auto">
                       <button 
                         onClick={(e) => {
@@ -354,7 +343,7 @@ function VaultContent() {
                       {openMenuId === account.id && (
                         <>
                           <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
-                          <div className="absolute right-0 top-full mt-2 w-32 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-20 py-1 overflow-hidden">
+                          <div className="absolute right-0 top-full mt-2 w-32 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-20 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -400,7 +389,6 @@ function VaultContent() {
                       <p className="text-xs text-slate-300 font-mono truncate">{account.identifier}</p>
                     </div>
 
-                    {/* SMART DYNAMIC DETAILS */}
                     {highlights.map(field => (
                        <div key={field.key} className="flex justify-between text-[10px] text-slate-500 border-t border-slate-800 pt-2">
                          <span className="uppercase">{field.label}</span>
@@ -430,7 +418,6 @@ function VaultContent() {
   );
 }
 
-// --- PEMBUNGKUS UTAMA ---
 export default function VaultPage() {
   return (
     <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="animate-spin text-cyan-500" size={32} /></div>}>

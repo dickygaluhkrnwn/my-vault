@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useRef, useState, useMemo, useEffect } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Stars, Float, MeshDistortMaterial, Sparkles, Text, Billboard, QuadraticBezierLine } from '@react-three/drei'
 import { EffectComposer, Bloom, Vignette, Noise } from '@react-three/postprocessing'
 import * as THREE from 'three'
@@ -61,11 +61,32 @@ const getCategoryColor = (category: AccountCategory | string): string => {
   }
 };
 
+// --- HELPER: DETEKSI MOBILE (Sederhana) ---
+// Hook untuk mendeteksi ukuran layar
+function useIsMobile() {
+    const [isMobile, setIsMobile] = useState(false);
+    
+    useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+    
+    return isMobile;
+}
+
+
 // --- KOMPONEN: ORGANIC CELL (BAKTERI/NEURON) ---
 function OrganicNode({ position, color, scale = 1, label, onClick }: { position: [number, number, number], color: string, scale?: number, label?: string, onClick?: () => void }) {
   const meshRef = useRef<THREE.Mesh>(null!)
   const glowRef = useRef<THREE.Mesh>(null!)
   const [hovered, setHover] = useState(false)
+  const isMobile = useIsMobile();
+
+  // Scale adjustment for mobile touch targets
+  const mobileScaleMultiplier = isMobile ? 1.2 : 1;
+  const finalScale = scale * mobileScaleMultiplier;
 
   useFrame((state) => {
     const t = state.clock.getElapsedTime()
@@ -88,18 +109,18 @@ function OrganicNode({ position, color, scale = 1, label, onClick }: { position:
       <Float speed={2} rotationIntensity={0.5} floatIntensity={1}>
         
         {/* Inti Sel */}
-        <mesh ref={glowRef} scale={scale * 0.3}>
+        <mesh ref={glowRef} scale={finalScale * 0.3}>
             <sphereGeometry args={[1, 32, 32]} />
             <meshStandardMaterial color={color} emissive={color} emissiveIntensity={3} toneMapped={false} />
         </mesh>
 
         {/* Sitoplasma */}
-        <Sparkles count={15} scale={scale * 0.8} size={3} speed={0.2} opacity={0.6} color="#ffffff" noise={1} />
+        <Sparkles count={15} scale={finalScale * 0.8} size={3} speed={0.2} opacity={0.6} color="#ffffff" noise={1} />
 
         {/* Membran Luar */}
         <mesh 
             ref={meshRef} 
-            scale={hovered ? scale * 1.3 : scale}
+            scale={hovered ? finalScale * 1.3 : finalScale}
             onPointerOver={() => setHover(true)}
             onPointerOut={() => setHover(false)}
         >
@@ -119,7 +140,7 @@ function OrganicNode({ position, color, scale = 1, label, onClick }: { position:
         </mesh>
 
         {/* Tekstur Kulit */}
-        <points scale={hovered ? scale * 1.32 : scale * 1.02}>
+        <points scale={hovered ? finalScale * 1.32 : finalScale * 1.02}>
             <sphereGeometry args={[1, 32, 32]} />
             <pointsMaterial 
                 color={hovered ? "#ffffff" : color}
@@ -134,18 +155,18 @@ function OrganicNode({ position, color, scale = 1, label, onClick }: { position:
         {/* Smart Label + Billboard */}
         {label && (
             <Billboard
-                position={[0, scale + 0.6, 0]} 
+                position={[0, finalScale + 0.6, 0]} 
                 follow={true} 
                 lockX={false} lockY={false} lockZ={false}
             >
                 <Text
-                    fontSize={hovered ? 0.4 : 0.25} 
+                    fontSize={hovered || isMobile ? 0.4 : 0.25} // Lebih besar di mobile agar terbaca
                     color={hovered ? "#22d3ee" : "#e2e8f0"} 
                     anchorX="center"
                     anchorY="bottom"
                     outlineWidth={0.02}
                     outlineColor="#020617" 
-                    fillOpacity={hovered ? 1 : 0.6} 
+                    fillOpacity={hovered || isMobile ? 1 : 0.6} // Selalu solid di mobile (no hover state)
                     characters="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;':,./<>?"
                 >
                     {label}
@@ -163,7 +184,6 @@ function NeuralImpulse({ curve, color, speed }: { curve: THREE.QuadraticBezierCu
     const meshRef = useRef<THREE.Mesh>(null!)
     
     useFrame((state) => {
-        // [TUNING] Kecepatan global dikurangi (multiplier 0.3) agar tidak terlalu aktif
         const t = (state.clock.getElapsedTime() * speed * 0.3) % 1
         const pos = curve.getPoint(t) 
         if (meshRef.current) {
@@ -187,10 +207,8 @@ function Synapse({ start, end, color = "#ffffff" }: { start: [number, number, nu
         const vMid = new THREE.Vector3().addVectors(vStart, vEnd).multiplyScalar(0.5)
         const dist = vStart.distanceTo(vEnd)
         
-        // [TUNING] Curvature dikurangi agar garis tidak terlalu melengkung jauh
         const curvature = dist * 0.15 
         
-        // Offset acak yang lebih halus
         const offset = new THREE.Vector3(
             (Math.random() - 0.5), 
             (Math.random() - 0.5), 
@@ -203,7 +221,6 @@ function Synapse({ start, end, color = "#ffffff" }: { start: [number, number, nu
         return { curve: curveObj, mid: vMid }
     }, [start, end])
 
-    // [TUNING] Range kecepatan dikurangi (0.2 - 0.7)
     const speed = useMemo(() => 0.2 + Math.random() * 0.5, [])
 
     return (
@@ -213,9 +230,9 @@ function Synapse({ start, end, color = "#ffffff" }: { start: [number, number, nu
                 end={new THREE.Vector3(...end)}
                 mid={mid}
                 color={color}
-                lineWidth={0.8} // Lebih tipis
+                lineWidth={0.8} 
                 transparent
-                opacity={0.1} // Lebih transparan
+                opacity={0.1} 
             />
             <NeuralImpulse curve={curve} color={color} speed={speed} />
         </group>
@@ -229,11 +246,9 @@ function Scene({ group, onNodeClick }: { group?: ConnectionGroup, onNodeClick?: 
   const { nodes, links } = useMemo(() => {
     if (!group) return { nodes: [], links: [] };
 
-    // 1. Inisialisasi Node
     const physicsNodes: PhysicsNode[] = [];
     const physicsLinks: PhysicsLink[] = [];
 
-    // Root Node
     if (group.rootAccount) {
         physicsNodes.push({
             id: group.rootAccount.id,
@@ -245,9 +260,7 @@ function Scene({ group, onNodeClick }: { group?: ConnectionGroup, onNodeClick?: 
         });
     }
 
-    // Child Nodes
     group.children.forEach(child => {
-        // Spawn posisi awal tidak terlalu jauh (range 5 instead of 10)
         physicsNodes.push({
             id: child.id,
             x: (Math.random() - 0.5) * 5,
@@ -269,17 +282,13 @@ function Scene({ group, onNodeClick }: { group?: ConnectionGroup, onNodeClick?: 
         }
     });
 
-    // 2. SIMULASI FISIKA
     const iterations = 300;
-    
-    // [TUNING PHYSICS] Parameter agar node lebih rapat & stabil
-    const repulsionStrength = 60; // Dikurangi (biar ga tolak-menolak terlalu jauh)
-    const springLength = 5;       // Jarak ideal diperpendek
-    const springStrength = 0.1;   // Tarikan diperkuat
-    const centerPull = 0.03;      // Gravitasi ke tengah diperkuat (biar ga kabur)
+    const repulsionStrength = 60; 
+    const springLength = 5;       
+    const springStrength = 0.1;   
+    const centerPull = 0.03;      
 
     for (let i = 0; i < iterations; i++) {
-        // A. Repulsion
         for (let j = 0; j < physicsNodes.length; j++) {
             for (let k = j + 1; k < physicsNodes.length; k++) {
                 const n1 = physicsNodes[j];
@@ -303,7 +312,6 @@ function Scene({ group, onNodeClick }: { group?: ConnectionGroup, onNodeClick?: 
             }
         }
 
-        // B. Spring
         physicsLinks.forEach(link => {
             const source = physicsNodes.find(n => n.id === link.source);
             const target = physicsNodes.find(n => n.id === link.target);
@@ -324,7 +332,6 @@ function Scene({ group, onNodeClick }: { group?: ConnectionGroup, onNodeClick?: 
             }
         });
 
-        // C. Center Pull
         physicsNodes.forEach(node => {
             if (node.isRoot) return; 
 
@@ -396,7 +403,6 @@ function Scene({ group, onNodeClick }: { group?: ConnectionGroup, onNodeClick?: 
         )}
       </group>
 
-      {/* [CRITICAL FIX] maxDistance dinaikkan ke 500 agar user bisa zoom out jauh jika node menyebar */}
       <OrbitControls 
         enablePan={true} 
         enableZoom={true} 
@@ -411,9 +417,14 @@ function Scene({ group, onNodeClick }: { group?: ConnectionGroup, onNodeClick?: 
 }
 
 export default function NetworkGraph({ group, onNodeClick }: NetworkGraphProps) {
+  // Mobile check untuk menyesuaikan FOV camera
+  const isMobile = useIsMobile();
+  const fov = isMobile ? 60 : 45; // FOV lebih lebar di mobile agar node tidak terlalu "dekat" di layar kecil
+  const cameraZ = isMobile ? 20 : 15; // Mundurkan kamera sedikit di mobile
+
   return (
     <div className="w-full h-[600px] bg-black rounded-xl overflow-hidden relative border border-white/10 shadow-2xl">
-      <Canvas camera={{ position: [0, 0, 15], fov: 45 }} dpr={[1, 2]}>
+      <Canvas camera={{ position: [0, 0, cameraZ], fov: fov }} dpr={[1, 2]}>
         <color attach="background" args={["#020617"]} />
         <Scene group={group} onNodeClick={onNodeClick} />
       </Canvas>

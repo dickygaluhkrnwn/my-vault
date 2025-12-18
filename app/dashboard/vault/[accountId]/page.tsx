@@ -66,7 +66,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
   const [showPassword, setShowPassword] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Helper Copy Text (Updated to accept undefined/null)
+  // Helper Copy Text
   const handleCopy = (text: string | undefined | null, fieldName: string) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
@@ -74,7 +74,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  // Helper Icon Kategori (Updated)
+  // Helper Icon Kategori
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case "GAME": return <Gamepad2 size={24} className="text-purple-400" />;
@@ -145,24 +145,26 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
   if (!account) return null;
 
   return (
-    <div className={`min-h-screen ${THEME.bg} text-slate-200 font-mono pb-20 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500`}>
+    <div className={`min-h-screen ${THEME.bg} text-slate-200 font-mono pb-20 space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500`}>
       
       {/* HEADER ACTIONS */}
       <div className="flex items-center justify-between border-b border-slate-800 pb-4">
         <button 
           onClick={() => router.back()} 
-          className="flex items-center gap-2 text-slate-500 hover:text-cyan-400 transition-colors px-3 py-2 rounded group text-xs font-bold tracking-wider"
+          className="flex items-center gap-2 text-slate-500 hover:text-cyan-400 transition-colors px-2 py-2 rounded group text-xs font-bold tracking-wider"
         >
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-          {'<<'} RETURN_TO_GRID
+          <span className="hidden sm:inline">{'<<'} RETURN_TO_GRID</span>
+          <span className="sm:hidden">BACK</span>
         </button>
         <div className="flex gap-2">
           <button 
             onClick={() => router.push(`/dashboard/vault/edit/${account.id}`)}
-            className="flex items-center gap-2 px-4 py-2 bg-cyan-950/30 text-cyan-400 border border-cyan-500/30 rounded hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] transition-all text-xs font-bold"
+            className="flex items-center gap-2 px-3 py-2 bg-cyan-950/30 text-cyan-400 border border-cyan-500/30 rounded hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] transition-all text-xs font-bold"
           >
             <Pencil size={14} />
-            // MODIFY_NODE
+            <span className="hidden sm:inline">MODIFY_NODE</span>
+            <span className="sm:hidden">EDIT</span>
           </button>
         </div>
       </div>
@@ -174,16 +176,16 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
         <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50" />
 
         {/* Banner Header */}
-        <div className="p-6 md:p-8 flex flex-col md:flex-row items-start gap-6 border-b border-slate-800 bg-slate-900/80">
-          <div className="p-4 bg-slate-950 border border-slate-700 rounded-xl shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+        <div className="p-4 md:p-6 lg:p-8 flex flex-col md:flex-row items-start gap-4 md:gap-6 border-b border-slate-800 bg-slate-900/80">
+          <div className="p-3 md:p-4 bg-slate-950 border border-slate-700 rounded-xl shadow-[0_0_20px_rgba(0,0,0,0.5)]">
             {getCategoryIcon(account.category)}
           </div>
-          <div className="flex-1 min-w-0 space-y-2">
+          <div className="flex-1 min-w-0 space-y-2 w-full">
             <div>
-               <div className="flex items-center gap-3 mb-1">
-                 <h1 className="text-3xl font-bold text-white tracking-tight truncate uppercase">{account.serviceName}</h1>
+               <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
+                 <h1 className="text-xl md:text-3xl font-bold text-white tracking-tight break-words uppercase">{account.serviceName}</h1>
                  {account.status === 'BANNED' && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-950/50 text-red-500 border border-red-900 animate-pulse">CRITICAL_BAN</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-950/50 text-red-500 border border-red-900 animate-pulse w-fit">CRITICAL_BAN</span>
                  )}
                </div>
                <div className="flex flex-wrap items-center gap-2">
@@ -200,15 +202,15 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
                </div>
             </div>
             
-            <div className="flex items-center gap-4 text-xs text-slate-500 pt-2 border-t border-slate-800 mt-2 border-dashed w-fit">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 pt-2 border-t border-slate-800 mt-2 border-dashed w-full">
                <span className="flex items-center gap-1.5">
                  <User size={12} className="text-cyan-600" />
-                 OWNER_ID: <span className="text-cyan-400 font-bold">{account.owner}</span>
+                 OWNER: <span className="text-cyan-400 font-bold">{account.owner}</span>
                </span>
                {account.linkedEmail && (
-                 <span className="flex items-center gap-1.5 hidden sm:flex">
-                   <LinkIcon size={12} className="text-purple-500" />
-                   PARENT_LINK: <span className="text-slate-300">{account.linkedEmail.split('@')[0]}</span>
+                 <span className="flex items-center gap-1.5 max-w-full">
+                   <LinkIcon size={12} className="text-purple-500 shrink-0" />
+                   <span className="truncate">PARENT: <span className="text-slate-300">{account.linkedEmail.split('@')[0]}</span></span>
                  </span>
                )}
             </div>
@@ -216,7 +218,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
         </div>
 
         {/* CONTENT GRID */}
-        <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+        <div className="p-4 md:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12">
           
           {/* LEFT: ACCESS CREDENTIALS */}
           <div className="space-y-6">
@@ -229,11 +231,11 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
             <div className="group">
               <label className="text-[10px] text-slate-500 font-bold mb-1 block ml-1 uppercase">User_Identifier</label>
               <div className="flex items-center gap-3 p-3 bg-slate-950 rounded border border-slate-800 group-hover:border-cyan-500/50 transition-all shadow-inner">
-                <Terminal size={16} className="text-slate-600" />
-                <span className="flex-1 font-mono text-cyan-300 break-all text-sm">{account.identifier}</span>
+                <Terminal size={16} className="text-slate-600 shrink-0" />
+                <span className="flex-1 font-mono text-cyan-300 break-all text-sm whitespace-normal">{account.identifier}</span>
                 <button 
                   onClick={() => handleCopy(account.identifier, 'identifier')}
-                  className="p-1.5 text-slate-500 hover:text-cyan-400 hover:bg-slate-800 rounded transition-colors"
+                  className="p-1.5 text-slate-500 hover:text-cyan-400 hover:bg-slate-800 rounded transition-colors shrink-0"
                   title="COPY_DATA"
                 >
                   {copiedField === 'identifier' ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
@@ -245,18 +247,17 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
             <div className="group">
               <label className="text-[10px] text-slate-500 font-bold mb-1 block ml-1 uppercase">Auth_Key / PIN</label>
               <div className="flex items-center gap-3 p-3 bg-slate-950 rounded border border-slate-800 group-hover:border-red-500/30 transition-all shadow-inner relative overflow-hidden">
-                {/* Red glow for security */}
                 <div className="absolute right-0 top-0 bottom-0 w-1 bg-red-500/20" />
                 
-                <Lock size={16} className="text-slate-600" />
+                <Lock size={16} className="text-slate-600 shrink-0" />
                 <div className="flex-1 font-mono text-slate-300 overflow-hidden text-sm">
                   {showPassword ? (
-                    <span className="break-all text-red-300 animate-in fade-in">{account.password || "NULL"}</span>
+                    <span className="break-all whitespace-normal text-red-300 animate-in fade-in">{account.password || "NULL"}</span>
                   ) : (
                     <span className="tracking-[0.3em] text-slate-600">**********</span>
                   )}
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <button 
                     onClick={() => setShowPassword(!showPassword)}
                     className="p-1.5 text-slate-500 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors"
@@ -276,10 +277,10 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
             {/* Linked Email Banner */}
             {account.linkedEmail && (
               <div className="mt-4 p-3 bg-purple-950/20 rounded border border-purple-500/20 flex items-start gap-3">
-                <Share2 size={16} className="text-purple-400 mt-0.5" />
-                <div>
+                <Share2 size={16} className="text-purple-400 mt-0.5 shrink-0" />
+                <div className="min-w-0">
                   <h4 className="text-[10px] font-bold text-purple-300 uppercase tracking-wide mb-1">Parent_Node_Link</h4>
-                  <p className="text-xs text-purple-200/70 break-all font-mono">{account.linkedEmail}</p>
+                  <p className="text-xs text-purple-200/70 break-all font-mono whitespace-normal">{account.linkedEmail}</p>
                 </div>
               </div>
             )}
@@ -293,104 +294,11 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
             </h3>
 
             <div className="space-y-2">
-              {/* UTILITY SPECIFIC */}
-              {account.category === "UTILITY" && (
-                <>
-                  {account.birthDate && <DetailRow label="DOB_RECORD" value={formatDate(account.birthDate)} icon={<Calendar size={14}/>} />}
-                  {account.gender && <DetailRow label="GENDER_ID" value={account.gender} icon={<User size={14}/>} />}
-                  {account.details && 'phoneLinked' in account.details && (account.details as any).phoneLinked && (
-                    <DetailRow label="RECOVERY_COMMS" value={(account.details as any).phoneLinked} icon={<Smartphone size={14}/>} onCopy={() => handleCopy((account.details as any).phoneLinked, 'phone')} copied={copiedField === 'phone'} />
-                  )}
-                </>
-              )}
-
-              {/* EDUCATION SPECIFIC (NEW) */}
-              {account.category === "EDUCATION" && account.details && (
-                <>
-                  {'institution' in account.details && (account.details as any).institution && (
-                    <DetailRow label="INSTITUTION" value={(account.details as any).institution} icon={<GraduationCap size={14}/>} />
-                  )}
-                  {'course' in account.details && (account.details as any).course && (
-                    <DetailRow label="COURSE_MODULE" value={(account.details as any).course} icon={<BookOpen size={14}/>} />
-                  )}
-                  {'level' in account.details && (account.details as any).level && (
-                    <DetailRow label="CURRENT_LEVEL" value={(account.details as any).level} icon={<Award size={14}/>} />
-                  )}
-                  {'progress' in account.details && (account.details as any).progress && (
-                    <DetailRow label="PROGRESS_PCT" value={(account.details as any).progress} icon={<Percent size={14}/>} />
-                  )}
-                </>
-              )}
-
-              {/* ECOMMERCE SPECIFIC (NEW) */}
-              {account.category === "ECOMMERCE" && account.details && (
-                <>
-                   {'shop_name' in account.details && (account.details as any).shop_name && (
-                    <DetailRow label="SHOP_IDENTIFIER" value={(account.details as any).shop_name} icon={<ShoppingBag size={14}/>} />
-                  )}
-                  {'paylater_limit' in account.details && (account.details as any).paylater_limit && (
-                    <DetailRow label="PAYLATER_CAP" value={(account.details as any).paylater_limit} icon={<CreditCard size={14}/>} />
-                  )}
-                   {'phone_linked' in account.details && (account.details as any).phone_linked && (
-                    <DetailRow label="LINKED_MOBILE" value={(account.details as any).phone_linked} icon={<Smartphone size={14}/>} />
-                  )}
-                </>
-              )}
-
-              {/* GAME SPECIFIC */}
-              {account.category === "GAME" && account.details && (
-                <>
-                  {'ign' in account.details && (account.details as any).ign && (
-                    <DetailRow label="IGN_HANDLE" value={(account.details as any).ign} icon={<User size={14}/>} onCopy={() => handleCopy((account.details as any).ign, 'ign')} copied={copiedField === 'ign'} />
-                  )}
-                  {'server' in account.details && (account.details as any).server && (
-                    <DetailRow label="SERVER_REGION" value={(account.details as any).server} icon={<Globe size={14}/>} />
-                  )}
-                  {'rank' in account.details && (account.details as any).rank && (
-                    <DetailRow label="COMPETITIVE_RANK" value={(account.details as any).rank} icon={<Activity size={14}/>} />
-                  )}
-                  {'level' in account.details && (account.details as any).level && (
-                    <DetailRow label="LEVEL_IND" value={(account.details as any).level} icon={<ArrowLeft size={14} className="rotate-90"/>} />
-                  )}
-                </>
-              )}
-
-              {/* FINANCE SPECIFIC */}
-              {account.category === "FINANCE" && account.details && (
-                <>
-                  {'accountNumber' in account.details && (account.details as any).accountNumber && (
-                    <DetailRow label="ACC_NUMBER" value={(account.details as any).accountNumber} icon={<CreditCard size={14}/>} onCopy={() => handleCopy((account.details as any).accountNumber, 'norek')} copied={copiedField === 'norek'} />
-                  )}
-                  {'pinAtm' in account.details && (account.details as any).pinAtm && (
-                    <DetailRow label="ATM_PIN_CODE" value={(account.details as any).pinAtm} icon={<Hash size={14}/>} isSecret />
-                  )}
-                  {'pinApp' in account.details && (account.details as any).pinApp && (
-                    <DetailRow label="APP_ACCESS_PIN" value={(account.details as any).pinApp} icon={<Smartphone size={14}/>} isSecret />
-                  )}
-                </>
-              )}
-
-              {/* SOCIAL SPECIFIC */}
-              {(account.category === "SOCIAL") && account.details && (
-                <>
-                  {'profileUrl' in account.details && (account.details as any).profileUrl && (
-                    <div className="flex flex-col py-2 border-b border-slate-800/50 last:border-0">
-                      <span className="text-[9px] text-slate-500 uppercase tracking-wider">PROFILE_URL_LINK</span>
-                      <a href={(account.details as any).profileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 mt-1 text-blue-400 hover:text-blue-300 text-xs font-mono truncate">
-                        <ExternalLink size={12} />
-                        {(account.details as any).profileUrl}
-                      </a>
-                    </div>
-                  )}
-                  {'phoneLinked' in account.details && (account.details as any).phoneLinked && (
-                    <DetailRow label="LINKED_MOBILE" value={(account.details as any).phoneLinked} icon={<Smartphone size={14}/>} onCopy={() => handleCopy((account.details as any).phoneLinked, 'phone')} copied={copiedField === 'phone'} />
-                  )}
-                </>
-              )}
+              {/* Custom Fields Rendering */}
+              {renderSpecificDetails(account, copiedField, handleCopy)}
               
-              {/* OTHER / GENERIC FIELDS (Fallback for Custom Fields) */}
+              {/* OTHER / GENERIC FIELDS */}
                {account.details && Object.entries(account.details).map(([key, value]) => {
-                  // Skip known keys handled above to avoid duplication
                   const knownKeys = ['ign', 'server', 'rank', 'level', 'accountNumber', 'pinAtm', 'pinApp', 'profileUrl', 'phoneLinked', 'institution', 'course', 'progress', 'shop_name', 'paylater_limit', 'phone_linked'];
                   if (knownKeys.includes(key)) return null;
 
@@ -423,7 +331,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
 
         {/* --- CONNECTIVITY MATRIX --- */}
         {connectedAccounts.length > 0 && (
-          <div className="border-t border-slate-800 bg-slate-950/30 p-6 md:p-8">
+          <div className="border-t border-slate-800 bg-slate-950/30 p-4 md:p-6 lg:p-8">
             <h3 className="text-xs font-bold text-slate-500 flex items-center gap-2 mb-4 uppercase tracking-[0.2em]">
                <LinkIcon size={14} className="text-purple-500" />
                LINKED_SUBSYSTEMS ({connectedAccounts.length})
@@ -432,7 +340,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                {connectedAccounts.map((child) => (
                   <Link href={`/dashboard/vault/${child.id}`} key={child.id} className="flex items-center gap-3 p-3 bg-slate-900 border border-slate-800 hover:border-cyan-500/50 hover:bg-slate-800 transition-all group">
-                      <div className="text-slate-600 group-hover:text-cyan-400 transition-colors">
+                      <div className="text-slate-600 group-hover:text-cyan-400 transition-colors shrink-0">
                          {getCategoryIcon(child.category)}
                       </div>
                       <div className="min-w-0">
@@ -446,10 +354,10 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
         )}
 
         {/* FOOTER METADATA */}
-        <div className="bg-slate-950 px-6 py-3 border-t border-slate-800 flex flex-col sm:flex-row justify-between text-[10px] text-slate-600 font-mono gap-2">
+        <div className="bg-slate-950 px-4 md:px-6 py-3 border-t border-slate-800 flex flex-col sm:flex-row justify-between text-[10px] text-slate-600 font-mono gap-2">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1.5">
-              <Clock size={10} />
+              <Calendar size={10} />
               INIT: {formatDate(account.createdAt)}
             </span>
             <span className="flex items-center gap-1.5">
@@ -457,34 +365,105 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
               MOD: {formatDate(account.lastUpdated)}
             </span>
           </div>
-          <div>ID: <span className="text-slate-500">{account.id}</span></div>
+          <div className="truncate">ID: <span className="text-slate-500">{account.id}</span></div>
         </div>
       </div>
     </div>
   );
 }
 
-// Component Kecil untuk Baris Detail
+// --- SUB COMPONENTS ---
+
+function renderSpecificDetails(account: Account, copiedField: string | null, handleCopy: any) {
+    if (!account.details) return null;
+    const d = account.details as any;
+
+    if (account.category === "UTILITY") {
+        return (
+            <>
+                {account.birthDate && <DetailRow label="DOB_RECORD" value={formatDate(account.birthDate)} icon={<Calendar size={14}/>} />}
+                {account.gender && <DetailRow label="GENDER_ID" value={account.gender} icon={<User size={14}/>} />}
+                {d.phoneLinked && <DetailRow label="RECOVERY_COMMS" value={d.phoneLinked} icon={<Smartphone size={14}/>} onCopy={() => handleCopy(d.phoneLinked, 'phone')} copied={copiedField === 'phone'} />}
+            </>
+        );
+    }
+    if (account.category === "EDUCATION") {
+        return (
+            <>
+                {d.institution && <DetailRow label="INSTITUTION" value={d.institution} icon={<GraduationCap size={14}/>} />}
+                {d.course && <DetailRow label="COURSE_MODULE" value={d.course} icon={<BookOpen size={14}/>} />}
+                {d.level && <DetailRow label="CURRENT_LEVEL" value={d.level} icon={<Award size={14}/>} />}
+                {d.progress && <DetailRow label="PROGRESS_PCT" value={d.progress} icon={<Percent size={14}/>} />}
+            </>
+        );
+    }
+    if (account.category === "ECOMMERCE") {
+        return (
+            <>
+                {d.shop_name && <DetailRow label="SHOP_IDENTIFIER" value={d.shop_name} icon={<ShoppingBag size={14}/>} />}
+                {d.paylater_limit && <DetailRow label="PAYLATER_CAP" value={d.paylater_limit} icon={<CreditCard size={14}/>} />}
+                {d.phone_linked && <DetailRow label="LINKED_MOBILE" value={d.phone_linked} icon={<Smartphone size={14}/>} />}
+            </>
+        );
+    }
+    if (account.category === "GAME") {
+        return (
+            <>
+                {d.ign && <DetailRow label="IGN_HANDLE" value={d.ign} icon={<User size={14}/>} onCopy={() => handleCopy(d.ign, 'ign')} copied={copiedField === 'ign'} />}
+                {d.server && <DetailRow label="SERVER_REGION" value={d.server} icon={<Globe size={14}/>} />}
+                {d.rank && <DetailRow label="COMPETITIVE_RANK" value={d.rank} icon={<Activity size={14}/>} />}
+                {d.level && <DetailRow label="LEVEL_IND" value={d.level} icon={<Activity size={14}/>} />}
+            </>
+        );
+    }
+    if (account.category === "FINANCE") {
+        return (
+            <>
+                {d.accountNumber && <DetailRow label="ACC_NUMBER" value={d.accountNumber} icon={<CreditCard size={14}/>} onCopy={() => handleCopy(d.accountNumber, 'norek')} copied={copiedField === 'norek'} />}
+                {d.pinAtm && <DetailRow label="ATM_PIN_CODE" value={d.pinAtm} icon={<Hash size={14}/>} isSecret />}
+                {d.pinApp && <DetailRow label="APP_ACCESS_PIN" value={d.pinApp} icon={<Smartphone size={14}/>} isSecret />}
+            </>
+        );
+    }
+    if (account.category === "SOCIAL") {
+        return (
+            <>
+                {d.profileUrl && (
+                    <div className="flex flex-col py-2 border-b border-slate-800/50 last:border-0 hover:bg-white/5 px-2 -mx-2 rounded transition-colors">
+                        <span className="text-[9px] text-slate-500 uppercase tracking-wider">PROFILE_URL_LINK</span>
+                        <a href={d.profileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 mt-1 text-blue-400 hover:text-blue-300 text-xs font-mono break-all whitespace-normal">
+                            <ExternalLink size={12} className="shrink-0" />
+                            {d.profileUrl}
+                        </a>
+                    </div>
+                )}
+                {d.phoneLinked && <DetailRow label="LINKED_MOBILE" value={d.phoneLinked} icon={<Smartphone size={14}/>} onCopy={() => handleCopy(d.phoneLinked, 'phone')} copied={copiedField === 'phone'} />}
+            </>
+        );
+    }
+    return null;
+}
+
 function DetailRow({ label, value, icon, onCopy, copied, isSecret }: any) {
   const [show, setShow] = useState(!isSecret);
   
   return (
-    <div className="flex flex-col py-2 border-b border-slate-800/50 last:border-0 hover:bg-white/5 px-2 -mx-2 rounded transition-colors">
+    <div className="flex flex-col py-2 border-b border-slate-800/50 last:border-0 hover:bg-white/5 px-2 -mx-2 rounded transition-colors group/row">
       <span className="text-[9px] text-slate-500 uppercase tracking-wider">{label}</span>
       <div className="flex items-center gap-2 mt-1">
-        <span className="text-slate-600">{icon}</span>
-        <span className="font-mono text-slate-300 flex-1 truncate text-xs">
+        <span className="text-slate-600 shrink-0">{icon}</span>
+        <span className="font-mono text-slate-300 flex-1 text-xs break-all whitespace-pre-wrap">
           {isSecret && !show ? "********" : value}
         </span>
         
         {isSecret && (
-          <button onClick={() => setShow(!show)} className="text-slate-600 hover:text-slate-300 px-1">
+          <button onClick={() => setShow(!show)} className="text-slate-600 hover:text-slate-300 px-1 shrink-0">
             {show ? <EyeOff size={12}/> : <Eye size={12}/>}
           </button>
         )}
         
         {onCopy && (
-          <button onClick={onCopy} className="text-slate-600 hover:text-cyan-400 px-1" title="COPY">
+          <button onClick={onCopy} className="text-slate-600 hover:text-cyan-400 px-1 opacity-0 group-hover/row:opacity-100 transition-opacity shrink-0" title="COPY">
             {copied ? <Check size={12} className="text-emerald-500"/> : <Copy size={12}/>}
           </button>
         )}

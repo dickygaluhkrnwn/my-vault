@@ -62,7 +62,7 @@ const CATEGORIES: { label: string; value: AccountCategory; icon: any }[] = [
   { label: "OTHER", value: "OTHER", icon: MoreHorizontal },
 ];
 
-// [BARU] Opsi Auth Method
+// Opsi Auth Method
 const AUTH_METHODS: { label: string; value: AuthMethod }[] = [
   { label: "Email & Password", value: "email" },
   { label: "Username & Password", value: "username" },
@@ -71,7 +71,7 @@ const AUTH_METHODS: { label: string; value: AuthMethod }[] = [
   { label: "SSO: Apple ID", value: "sso_apple" },
   { label: "SSO: Facebook", value: "sso_facebook" },
   { label: "SSO: Steam", value: "sso_steam" },
-  { label: "SSO: Supercell ID", value: "sso_supercell" }, // [UPDATED] Ditambahkan
+  { label: "SSO: Supercell ID", value: "sso_supercell" },
   { label: "Linked / 3rd Party", value: "linked_account" },
   { label: "Other Method", value: "other" },
 ];
@@ -93,9 +93,9 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
     category: "SOCIAL" as AccountCategory,
     identifier: "",
     password: "",
-    authMethod: "email" as AuthMethod, // [BARU]
+    authMethod: "email" as AuthMethod,
     linkedEmail: "",
-    linkedAccountId: "", // [BARU]
+    linkedAccountId: "",
     owner: "Dicky",
     status: "ACTIVE" as AccountStatus,
     tags: "",
@@ -136,7 +136,6 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
     }
     const search = formData.linkedEmail.toLowerCase();
     const filtered = parentSuggestions.filter(acc => {
-      // Jangan tampilkan diri sendiri dalam saran parent
       if (acc.id === accountId) return false;
 
       let typeMatch = true;
@@ -149,7 +148,6 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
       
       return typeMatch && textMatch;
     });
-    // [UPDATED] Limit dinaikkan ke 50 agar konsisten dengan halaman Create/Connectivity
     setFilteredParents(filtered.slice(0, 50));
   }, [formData.linkedEmail, parentType, parentSuggestions, accountId]);
 
@@ -180,7 +178,7 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
             category: category,
             identifier: data.identifier || "",
             password: data.password || "",
-            authMethod: (data.authMethod as AuthMethod) || "email", // Default ke email jika data lama
+            authMethod: (data.authMethod as AuthMethod) || "email",
             linkedEmail: data.linkedEmail || "",
             linkedAccountId: data.linkedAccountId || "",
             owner: data.owner || "Dicky",
@@ -238,7 +236,6 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     
-    // Reset linkedAccountId jika user edit email parent manual
     if (name === "linkedEmail") {
         setFormData(prev => ({ ...prev, linkedAccountId: "" }));
         setShowSuggestions(true);
@@ -252,7 +249,6 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
         linkedAccountId: acc.id 
     }));
     
-    // Auto-switch tab based on selection logic
     if (acc.category === "GAME") setParentType("GAME");
     else if (["UTILITY", "SOCIAL", "WORK"].includes(acc.category)) setParentType("EMAIL");
     else setParentType("OTHER");
@@ -341,14 +337,13 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
   const availableSuggestions = currentTemplateFields.filter(f => !activeTemplateKeys.includes(f.key));
   const activeFields = currentTemplateFields.filter(f => activeTemplateKeys.includes(f.key));
 
-  // Helper untuk cek apakah perlu menampilkan Parent Search
   const shouldShowParentSearch = [
     "linked_account", 
     "sso_google", 
     "sso_steam", 
     "sso_facebook", 
     "sso_apple",
-    "sso_supercell" // [UPDATED] Ditambahkan
+    "sso_supercell"
   ].includes(formData.authMethod);
 
   if (loading) {
@@ -363,7 +358,7 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
   }
 
   return (
-    <div className={`max-w-3xl mx-auto pb-20 space-y-6 font-mono text-slate-200 animate-in fade-in slide-in-from-bottom-4 duration-500`}>
+    <div className={`max-w-3xl mx-auto pb-20 space-y-4 md:space-y-6 font-mono text-slate-200 animate-in fade-in slide-in-from-bottom-4 duration-500`}>
       {/* MODAL DELETE */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -387,8 +382,8 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
         <div className="flex items-center gap-4">
           <button type="button" onClick={() => router.back()} className="p-2 hover:bg-slate-900 rounded transition-colors group border border-transparent hover:border-slate-800"><ArrowLeft size={20} className="text-slate-500 group-hover:text-cyan-400 transition-colors" /></button>
           <div>
-            <h1 className="text-xl font-bold text-white flex items-center gap-2"><Database size={20} className="text-cyan-400" /> MODIFY_RECORD</h1>
-            <p className="text-xs text-slate-500 tracking-widest mt-1 flex items-center gap-2">UPDATING ENTRY: {formData.serviceName} {lastUpdated && (<span className="text-[9px] bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 text-slate-400 flex items-center gap-1"><Clock size={8} /> {formatDate(lastUpdated)}</span>)}</p>
+            <h1 className="text-lg md:text-xl font-bold text-white flex items-center gap-2"><Database size={20} className="text-cyan-400" /> MODIFY_RECORD</h1>
+            <p className="text-[10px] md:text-xs text-slate-500 tracking-widest mt-1 flex items-center gap-2">UPDATING ENTRY: {formData.serviceName} {lastUpdated && (<span className="text-[9px] bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 text-slate-400 flex items-center gap-1"><Clock size={8} /> {formatDate(lastUpdated)}</span>)}</p>
           </div>
         </div>
         <button type="button" onClick={() => setShowDeleteModal(true)} className="p-2 text-red-500/70 hover:text-red-400 hover:bg-red-950/30 rounded border border-transparent hover:border-red-900/50 transition-all" title="PURGE_RECORD"><Trash2 size={18} /></button>
@@ -397,12 +392,12 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
       <form onSubmit={handleSubmit} className="space-y-6">
         
         {/* SECTION 1: CORE METADATA */}
-        <div className={`p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-6 relative overflow-hidden`}>
+        <div className={`p-4 md:p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-4 md:space-y-6 relative overflow-hidden`}>
           <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500/20" />
           <h3 className="text-sm font-bold text-cyan-400 border-b border-slate-800 pb-2 flex items-center gap-2 uppercase tracking-wider">
             <Pencil size={16} /> CORE_METADATA
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <div className="space-y-1 group">
               <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400 transition-colors">SERVICE_NAME</label>
               <div className="flex items-center bg-slate-950 border border-slate-800 rounded p-2 focus-within:border-cyan-500/50 transition-all"><span className="text-slate-600 mr-2">{'>'}</span><input required name="serviceName" value={formData.serviceName} onChange={handleInputChange} className="bg-transparent border-none outline-none w-full text-sm placeholder:text-slate-700" /></div>
@@ -432,7 +427,7 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
         </div>
 
         {/* SECTION 2: ACCESS CREDENTIALS */}
-        <div className={`p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-6 relative overflow-hidden`}>
+        <div className={`p-4 md:p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-4 md:space-y-6 relative overflow-hidden`}>
           <div className="absolute top-0 left-0 w-1 h-full bg-purple-500/20" />
           <h3 className="text-sm font-bold text-purple-400 border-b border-slate-800 pb-2 flex items-center gap-2 uppercase tracking-wider"><Terminal size={16} /> LOGIN_CREDENTIALS</h3>
           <div className="space-y-4">
@@ -486,7 +481,6 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
                   autoComplete="off" 
                 />
                 
-                {/* Visual indicator if linked */}
                 {formData.linkedAccountId && (
                     <div className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-500">
                         <LinkIcon size={14} />
@@ -505,14 +499,13 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
                   </div>
                 )}
               </div>
-              {/* FIX: Replaced -> with &gt; to prevent syntax error */}
               <p className="text-[10px] text-slate-600 italic">*Tautkan akun ini ke akun induknya (misal: Game &gt; Steam, Shopee &gt; Google) untuk visualisasi konektivitas.</p>
             </div>
           </div>
         </div>
 
         {/* SECTION 3: EXTENDED ATTRIBUTES */}
-        <div className={`p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-6 relative overflow-hidden`}>
+        <div className={`p-4 md:p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-4 md:space-y-6 relative overflow-hidden`}>
           <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500/20" />
           <div className="flex justify-between items-center border-b border-slate-800 pb-2 mb-4">
             <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-2 uppercase tracking-wider"><Settings2 size={16} /> EXTENDED_ATTRIBUTES</h3>
@@ -530,7 +523,7 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
               </div>
             </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <div className="space-y-1 group">
               <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400 flex items-center gap-2"><Calendar size={12} /> DOB_RECORD</label>
               <input type="date" name="birthDate" value={formData.birthDate} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 text-slate-300" />
@@ -581,7 +574,7 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
           </div>
         </div>
 
-        <div className="flex gap-4 pt-4">
+        <div className="flex gap-4 pt-4 sticky bottom-0 bg-slate-950/80 backdrop-blur-sm p-4 border-t border-slate-800 -mx-4 md:mx-0 md:relative md:border-none md:p-0 md:bg-transparent">
           <button type="button" onClick={() => router.back()} className="flex-1 px-4 py-3 border border-slate-800 text-slate-500 hover:text-white rounded hover:bg-slate-900 transition-colors text-xs font-bold tracking-wider">ABORT</button>
           <button type="submit" disabled={saving} className="flex-[2] bg-cyan-900/30 text-cyan-400 border border-cyan-500/30 px-4 py-3 rounded font-bold hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] transition-all shadow-md flex justify-center items-center gap-2 text-xs tracking-wider">
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} COMMIT_CHANGES

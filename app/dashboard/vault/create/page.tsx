@@ -60,7 +60,7 @@ const CATEGORIES: { label: string; value: AccountCategory; icon: any }[] = [
   { label: "OTHER", value: "OTHER", icon: MoreHorizontal },
 ];
 
-// Opsi Auth Method (Sesuai Schema Baru)
+// Opsi Auth Method
 const AUTH_METHODS: { label: string; value: AuthMethod }[] = [
   { label: "Email & Password", value: "email" },
   { label: "Username & Password", value: "username" },
@@ -69,7 +69,7 @@ const AUTH_METHODS: { label: string; value: AuthMethod }[] = [
   { label: "SSO: Apple ID", value: "sso_apple" },
   { label: "SSO: Facebook", value: "sso_facebook" },
   { label: "SSO: Steam", value: "sso_steam" },
-  { label: "SSO: Supercell ID", value: "sso_supercell" }, // [BARU] Misi 1.2 Selesai
+  { label: "SSO: Supercell ID", value: "sso_supercell" },
   { label: "Linked / 3rd Party", value: "linked_account" },
   { label: "Other Method", value: "other" },
 ];
@@ -86,9 +86,9 @@ export default function CreateAccountPage() {
     category: "SOCIAL" as AccountCategory,
     identifier: "",
     password: "",
-    authMethod: "email" as AuthMethod, // [BARU] Default method
+    authMethod: "email" as AuthMethod,
     linkedEmail: "", 
-    linkedAccountId: "", // [BARU] ID Relasi Database
+    linkedAccountId: "",
     owner: "Dicky",
     status: "ACTIVE" as AccountStatus,
     tags: "", 
@@ -125,7 +125,6 @@ export default function CreateAccountPage() {
   // [LOGIKA BARU] Rekomendasi Auth Method berdasarkan Kategori
   useEffect(() => {
     if (formData.category === "GAME") {
-      // Prioritaskan username, tapi user bisa ganti ke Supercell ID nanti
       setFormData(prev => ({ ...prev, authMethod: "username" })); 
     } else if (["FINANCE", "UTILITY", "WORK"].includes(formData.category)) {
       setFormData(prev => ({ ...prev, authMethod: "email" }));
@@ -140,16 +139,12 @@ export default function CreateAccountPage() {
     }
     const search = formData.linkedEmail.toLowerCase();
     const filtered = parentSuggestions.filter(acc => {
-      // 1. Filter Context: Jangan tampilkan diri sendiri (di create page belum ada ID, aman)
-      
-      // 2. Filter Text
       const textMatch = 
         acc.serviceName.toLowerCase().includes(search) || 
         acc.identifier.toLowerCase().includes(search);
       
       return textMatch;
     });
-    // [PERBAIKAN] Meningkatkan limit dari 5 ke 50 agar semua akun terkait muncul
     setFilteredParents(filtered.slice(0, 50)); 
   }, [formData.linkedEmail, parentSuggestions]);
 
@@ -174,7 +169,6 @@ export default function CreateAccountPage() {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     
-    // Jika user mengetik manual di linkedEmail, reset linkedAccountId agar konsisten
     if (name === "linkedEmail") {
         setFormData(prev => ({ ...prev, linkedAccountId: "" }));
         setShowSuggestions(true);
@@ -185,7 +179,7 @@ export default function CreateAccountPage() {
     setFormData(prev => ({ 
         ...prev, 
         linkedEmail: acc.identifier,
-        linkedAccountId: acc.id // [PENTING] Simpan ID parent
+        linkedAccountId: acc.id
     }));
     setShowSuggestions(false);
   };
@@ -233,7 +227,6 @@ export default function CreateAccountPage() {
           finalDetails[safeKey] = field.value;
         }
       });
-      // Bersihkan field kosong
       Object.keys(finalDetails).forEach(key => {
         if (finalDetails[key] === "" || finalDetails[key] === undefined) {
           delete finalDetails[key];
@@ -262,18 +255,17 @@ export default function CreateAccountPage() {
   const availableSuggestions = currentTemplateFields.filter(f => !activeTemplateKeys.includes(f.key));
   const activeFields = currentTemplateFields.filter(f => activeTemplateKeys.includes(f.key));
 
-  // Helper untuk cek apakah perlu menampilkan Parent Search
   const shouldShowParentSearch = [
     "linked_account", 
     "sso_google", 
     "sso_steam", 
     "sso_facebook", 
     "sso_apple",
-    "sso_supercell" // [BARU] Ditambahkan agar input parent muncul saat Supercell ID dipilih
+    "sso_supercell"
   ].includes(formData.authMethod);
 
   return (
-    <div className={`max-w-3xl mx-auto pb-20 space-y-6 font-mono text-slate-200 animate-in fade-in slide-in-from-bottom-4 duration-500`}>
+    <div className={`max-w-3xl mx-auto pb-20 space-y-4 md:space-y-6 font-mono text-slate-200 animate-in fade-in slide-in-from-bottom-4 duration-500`}>
       
       {/* HEADER */}
       <div className="flex items-center gap-4 border-b border-slate-800 pb-4">
@@ -285,11 +277,11 @@ export default function CreateAccountPage() {
           <ArrowLeft size={20} className="text-slate-500 group-hover:text-cyan-400 transition-colors" />
         </button>
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
             <Database size={20} className="text-cyan-400" />
             SMART_DATA_INJECTION
           </h1>
-          <p className="text-xs text-slate-500 tracking-widest mt-1">
+          <p className="text-[10px] md:text-xs text-slate-500 tracking-widest mt-1">
             ESTABLISHING NEW SECURE RECORD...
           </p>
         </div>
@@ -298,13 +290,13 @@ export default function CreateAccountPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         
         {/* SECTION 1: CORE METADATA */}
-        <div className={`p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-6 relative overflow-hidden`}>
+        <div className={`p-4 md:p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-4 md:space-y-6 relative overflow-hidden`}>
           <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500/20" />
           <h3 className="text-sm font-bold text-cyan-400 border-b border-slate-800 pb-2 flex items-center gap-2 uppercase tracking-wider">
             <ShieldAlert size={16} />
             CORE_METADATA
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <div className="space-y-1 group">
               <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400 transition-colors">SERVICE_NAME</label>
               <div className="flex items-center bg-slate-950 border border-slate-800 rounded p-2 focus-within:border-cyan-500/50 transition-all">
@@ -341,7 +333,7 @@ export default function CreateAccountPage() {
         </div>
 
         {/* SECTION 2: ACCESS CREDENTIALS (ADAPTIVE) */}
-        <div className={`p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-6 relative overflow-hidden`}>
+        <div className={`p-4 md:p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-4 md:space-y-6 relative overflow-hidden`}>
           <div className="absolute top-0 left-0 w-1 h-full bg-purple-500/20" />
           <h3 className="text-sm font-bold text-purple-400 border-b border-slate-800 pb-2 flex items-center gap-2 uppercase tracking-wider">
             <Terminal size={16} />
@@ -380,7 +372,6 @@ export default function CreateAccountPage() {
             </div>
 
             {/* --- SMART PARENT LINK SECTION --- */}
-            {/* Muncul jika method login memerlukan induk (SSO / Linked) */}
             <div className={`space-y-2 pt-2 border-t border-slate-800 border-dashed group relative transition-all duration-300 ${shouldShowParentSearch ? 'opacity-100' : 'opacity-50 grayscale'}`} ref={suggestionRef}>
               <div className="flex justify-between items-end">
                 <label className={`text-xs font-bold flex items-center gap-2 transition-colors ${shouldShowParentSearch ? 'text-slate-500 group-focus-within:text-purple-400' : 'text-slate-700'}`}>
@@ -388,7 +379,6 @@ export default function CreateAccountPage() {
                   CONNECT_TO_PARENT_NODE
                 </label>
                 
-                {/* Indicator Badge */}
                 {shouldShowParentSearch && (
                   <span className="text-[9px] bg-purple-900/30 text-purple-300 px-2 py-0.5 rounded border border-purple-500/20">
                     REQUIRED FOR {formData.authMethod.toUpperCase()}
@@ -408,14 +398,12 @@ export default function CreateAccountPage() {
                   autoComplete="off"
                 />
                 
-                {/* Visual indicator if linked */}
                 {formData.linkedAccountId && (
                     <div className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-500">
                         <LinkIcon size={14} />
                     </div>
                 )}
 
-                {/* Autocomplete Suggestions */}
                 {showSuggestions && formData.linkedEmail && filteredParents.length > 0 && (
                   <div className="absolute bottom-full left-0 w-full mb-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                     <div className="px-3 py-2 text-[10px] font-bold text-slate-500 bg-slate-950 border-b border-slate-800 flex justify-between">
@@ -447,7 +435,7 @@ export default function CreateAccountPage() {
         </div>
 
         {/* SECTION 3: EXTENDED ATTRIBUTES */}
-        <div className={`p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-6 relative overflow-hidden`}>
+        <div className={`p-4 md:p-6 rounded-xl border ${THEME.border} ${THEME.panel} space-y-4 md:space-y-6 relative overflow-hidden`}>
           <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500/20" />
           <div className="flex justify-between items-center border-b border-slate-800 pb-2 mb-4">
             <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-2 uppercase tracking-wider">
@@ -470,7 +458,7 @@ export default function CreateAccountPage() {
               </div>
             </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <div className="space-y-1 group">
               <label className="text-xs font-bold text-slate-500 group-focus-within:text-emerald-400 flex items-center gap-2"><Calendar size={12} /> DOB_RECORD</label>
               <input type="date" name="birthDate" value={formData.birthDate} onChange={handleInputChange} className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-sm outline-none focus:border-emerald-500/50 text-slate-300" />
@@ -521,10 +509,10 @@ export default function CreateAccountPage() {
           </div>
         </div>
 
-        <div className="flex gap-4 pt-4">
-          <button type="button" onClick={() => router.back()} className="flex-1 px-4 py-3 border border-slate-800 text-slate-500 hover:text-white rounded hover:bg-slate-900 transition-colors text-xs font-bold tracking-wider">ABORT_PROTOCOL</button>
+        <div className="flex gap-4 pt-4 sticky bottom-0 bg-slate-950/80 backdrop-blur-sm p-4 border-t border-slate-800 -mx-4 md:mx-0 md:relative md:border-none md:p-0 md:bg-transparent">
+          <button type="button" onClick={() => router.back()} className="flex-1 px-4 py-3 border border-slate-800 text-slate-500 hover:text-white rounded hover:bg-slate-900 transition-colors text-xs font-bold tracking-wider">ABORT</button>
           <button type="submit" disabled={loading} className="flex-[2] bg-cyan-900/30 text-cyan-400 border border-cyan-500/30 px-4 py-3 rounded font-bold hover:bg-cyan-500/20 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] transition-all shadow-md flex justify-center items-center gap-2 text-xs tracking-wider">
-            {loading ? <Loader2 className="animate-spin" /> : <Save size={16} />} EXECUTE_INJECTION
+            {loading ? <Loader2 className="animate-spin" /> : <Save size={16} />} EXECUTE
           </button>
         </div>
       </form>

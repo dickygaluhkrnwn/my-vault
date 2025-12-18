@@ -7,20 +7,14 @@ import { Account, AccountCategory } from "../../../lib/types/schema";
 import { useRouter } from "next/navigation"; 
 import { 
   Network, 
-  Gamepad2, 
-  Wallet, 
-  Share2, 
-  Briefcase, 
-  Mail, 
-  Music, 
-  ShoppingBag,
-  MoreHorizontal,
   GitBranch,
   Activity,
   Search,
   Wifi,
   Shield,
-  GraduationCap,
+  List,
+  Box,
+  Eye
 } from "lucide-react";
 import { onAuthStateChanged } from "firebase/auth";
 import NetworkGraph from "../../../components/visual/NetworkGraph";
@@ -55,8 +49,13 @@ export default function ConnectivityPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<ConnectionGroup[]>([]);
+  const [filteredGroups, setFilteredGroups] = useState<ConnectionGroup[]>([]);
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
   const [scanProgress, setScanProgress] = useState(0);
+  
+  // Mobile View State ('list' or 'graph')
+  const [mobileView, setMobileView] = useState<'list' | 'graph'>('list');
+  const [searchQuery, setSearchQuery] = useState("");
 
   // --- LOGIC INTI: RECURSIVE IDENTITY TRACING ---
   const findRootNode = (
@@ -72,7 +71,6 @@ export default function ConnectivityPage() {
     visitedIds.add(currentAcc.id);
 
     // 1. Cek Relasi Database (ID) - Prioritas Tertinggi
-    // Jika user sudah memilih parent secara manual di form create/edit
     if (currentAcc.linkedAccountId) {
         const parentAcc = allAccountsMap.get(currentAcc.linkedAccountId);
         if (parentAcc) {
@@ -87,17 +85,14 @@ export default function ConnectivityPage() {
     }
 
     // 2. Cek Relasi String (Linked Email/Identifier) - Fallback Cerdas
-    // Jika tidak ada ID parent, kita cari berdasarkan string 'linkedEmail'
     if (currentAcc.linkedEmail && currentAcc.authMethod !== 'email') {
         const potentialParents: Account[] = [];
         
         for (const acc of allAccountsMap.values()) {
-            // Case-insensitive comparison
             const targetIdentifier = currentAcc.linkedEmail.toLowerCase();
             const candidateIdentifier = acc.identifier.toLowerCase();
             const candidateServiceName = acc.serviceName.toLowerCase();
 
-            // Match Logic: Identifier sama ATAU Service Name sama (misal "Google")
             if (
                 (candidateIdentifier === targetIdentifier || candidateServiceName === targetIdentifier) && 
                 acc.id !== currentAcc.id
@@ -109,7 +104,6 @@ export default function ConnectivityPage() {
         let bestParent: Account | undefined;
 
         if (potentialParents.length > 0) {
-            // Heuristik Pemilihan Parent Terbaik
             if (currentAcc.authMethod === 'sso_steam') {
                 bestParent = potentialParents.find(p => p.category === 'GAME') || 
                              potentialParents.find(p => p.serviceName.toLowerCase().includes('steam')) || 
@@ -118,12 +112,11 @@ export default function ConnectivityPage() {
                 bestParent = potentialParents.find(p => p.category === 'UTILITY') || 
                              potentialParents.find(p => p.serviceName.toLowerCase().includes('google')) || 
                              potentialParents[0];
-            } else if (currentAcc.authMethod === 'sso_supercell') { // [BARU] Logika Supercell
+            } else if (currentAcc.authMethod === 'sso_supercell') { 
                 bestParent = potentialParents.find(p => p.serviceName.toLowerCase().includes('supercell')) ||
                              potentialParents.find(p => p.identifier === currentAcc.linkedEmail) ||
                              potentialParents[0];
             } else {
-                // Default: Ambil yang paling "mirip" atau yang pertama
                 bestParent = potentialParents[0];
             }
         }
@@ -137,8 +130,6 @@ export default function ConnectivityPage() {
                 immediateParentId: bestParent.id
             };
         } else {
-            // Jika linkedEmail ada tapi tidak ketemu akunnya di DB, 
-            // kita tetap grupkan berdasarkan string email tersebut (External Cluster)
             return { 
                 rootIdentifier: currentAcc.linkedEmail.toLowerCase(), 
                 path: ["External"],
@@ -147,7 +138,6 @@ export default function ConnectivityPage() {
         }
     }
 
-    // Jika tidak ada link sama sekali, dia adalah Root bagi dirinya sendiri
     return { rootIdentifier: currentAcc.identifier.toLowerCase(), path: [], rootAccount: currentAcc };
   };
 
@@ -181,15 +171,10 @@ export default function ConnectivityPage() {
             if (!tempGroups[rootId]) {
                 tempGroups[rootId] = {
                     parentId: rootId,
-                    rootAccount: trace.rootAccount, // Bisa undefined jika External
+                    rootAccount: trace.rootAccount, 
                     children: []
                 };
             }
-
-            // Jika akun ini bukan root, masukkan sebagai anak
-            // ATAU jika dia root tapi ada akun lain yang menganggap dia root (logic handle later)
-            // Di sini kita masukkan SEMUA node ke dalam grupnya masing-masing
-            // kecuali dia adalah Root Account itu sendiri (agar tidak duplikat di visualisasi sebagai anak dan induk)
             
             const isSelfRoot = trace.rootAccount?.id === acc.id;
             
@@ -209,14 +194,12 @@ export default function ConnectivityPage() {
         });
 
         // Phase 2: SMART RE-LINKING (Post-Processing)
-        // Memperbaiki relasi antar sibling agar struktur pohon lebih rapi
         Object.values(tempGroups).forEach(group => {
             const potentialHubs = group.children.filter(
                 c => c.category === 'GAME' || c.serviceName.toLowerCase().includes('steam')
             );
 
             group.children.forEach(child => {
-                // Logic khusus Steam
                 if (
                     child.authMethod === 'sso_steam' && 
                     child.immediateParentId === group.rootAccount?.id &&
@@ -233,14 +216,12 @@ export default function ConnectivityPage() {
             });
         });
 
-        // Filter grup yang valid (punya anak ATAU dia adalah single root yang valid)
-        // Kita ingin menampilkan grup meskipun isinya cuma 1 node (single parent) agar user sadar ada akun itu
         const groupedArray = Object.values(tempGroups)
             .sort((a, b) => b.children.length - a.children.length);
         
         setGroups(groupedArray);
+        setFilteredGroups(groupedArray); // Init filtered groups
         
-        // Auto-select logic
         if (!selectedParentId && groupedArray.length > 0) {
           setSelectedParentId(groupedArray[0].parentId);
         } else if (selectedParentId) {
@@ -262,12 +243,35 @@ export default function ConnectivityPage() {
     };
   }, [selectedParentId]);
 
+  // Search Filtering Effect
+  useEffect(() => {
+    if (!searchQuery) {
+        setFilteredGroups(groups);
+        return;
+    }
+    const lowerQuery = searchQuery.toLowerCase();
+    const filtered = groups.filter(g => {
+        const rootMatch = g.rootAccount?.serviceName.toLowerCase().includes(lowerQuery) || 
+                          g.rootAccount?.identifier.toLowerCase().includes(lowerQuery) ||
+                          g.parentId.toLowerCase().includes(lowerQuery);
+        
+        // Also check if any child matches (optional, but good for UX)
+        const childMatch = g.children.some(c => 
+            c.serviceName.toLowerCase().includes(lowerQuery) || 
+            c.identifier.toLowerCase().includes(lowerQuery)
+        );
+
+        return rootMatch || childMatch;
+    });
+    setFilteredGroups(filtered);
+  }, [searchQuery, groups]);
+
+
   // Handler interaksi
   const handleNodeClick = (account: Account) => {
     router.push(`/dashboard/vault/${account.id}`);
   };
 
-  // Group yang sedang aktif (diklik di sidebar)
   const activeGroup = groups.find(g => g.parentId === selectedParentId);
 
   if (loading) {
@@ -294,10 +298,10 @@ export default function ConnectivityPage() {
   }
 
   return (
-    <div className={`min-h-[85vh] ${THEME.bg} text-slate-200 p-6 rounded-xl border ${THEME.border} shadow-2xl font-mono overflow-hidden flex flex-col`}>
+    <div className={`min-h-[85vh] ${THEME.bg} text-slate-200 p-4 lg:p-6 rounded-xl border ${THEME.border} shadow-2xl font-mono overflow-hidden flex flex-col`}>
       
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 border-b border-slate-800 pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 lg:mb-8 border-b border-slate-800 pb-4">
         <div className="flex items-center gap-4">
             <div className="p-3 bg-cyan-950/30 border border-cyan-500/20 rounded-lg animate-pulse">
                 <Network className="text-cyan-400" size={24} />
@@ -309,7 +313,24 @@ export default function ConnectivityPage() {
                 <p className="text-xs text-slate-500 mt-1">ORGANIC TOPOLOGY ACTIVE</p>
             </div>
         </div>
-        <div className="flex gap-4 text-xs">
+        
+        {/* MOBILE TOGGLE (LIST / GRAPH) */}
+        <div className="flex items-center gap-2 lg:hidden bg-slate-900 p-1 rounded-lg border border-slate-800">
+            <button 
+                onClick={() => setMobileView('list')}
+                className={`p-2 rounded ${mobileView === 'list' ? 'bg-cyan-900/50 text-cyan-400' : 'text-slate-500'}`}
+            >
+                <List size={18} />
+            </button>
+            <button 
+                onClick={() => setMobileView('graph')}
+                className={`p-2 rounded ${mobileView === 'graph' ? 'bg-cyan-900/50 text-cyan-400' : 'text-slate-500'}`}
+            >
+                <Box size={18} />
+            </button>
+        </div>
+
+        <div className="hidden lg:flex gap-4 text-xs">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-900 border border-slate-800">
                 <Wifi size={14} className="text-cyan-400" />
                 <span className="text-slate-400">{groups.length} CLUSTERS</span>
@@ -317,24 +338,49 @@ export default function ConnectivityPage() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 flex-1">
+      <div className="flex flex-col lg:flex-row gap-6 flex-1 relative h-[600px] lg:h-auto">
         
-        {/* LEFT PANEL: LIST */}
-        <div className="w-full lg:w-80 flex flex-col gap-4">
-            <div className={`p-4 rounded-lg border ${THEME.border} ${THEME.panel}`}>
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">
-                    <Search size={14} />
-                    Identity Clusters
+        {/* LEFT PANEL: LIST (Hidden on mobile if view is graph) */}
+        <div className={`w-full lg:w-80 flex flex-col gap-4 absolute lg:relative inset-0 z-10 bg-slate-950 lg:bg-transparent transition-all duration-300 ${mobileView === 'graph' ? 'opacity-0 pointer-events-none lg:opacity-100 lg:pointer-events-auto' : 'opacity-100'}`}>
+            <div className={`p-4 rounded-lg border ${THEME.border} ${THEME.panel} h-full flex flex-col`}>
+                <div className="flex flex-col gap-3 mb-3">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        <Search size={14} />
+                        Identity Clusters
+                    </div>
+                    {/* SEARCH INPUT */}
+                    <div className="relative">
+                        <input 
+                            type="text" 
+                            placeholder="Find cluster..." 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-cyan-500/50 transition-colors placeholder:text-slate-600"
+                        />
+                        {searchQuery && (
+                            <button 
+                                onClick={() => setSearchQuery("")}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 hover:text-white"
+                            >
+                                <Shield size={10} className="rotate-45" /> {/* Close icon visual hack or import X */}
+                            </button>
+                        )}
+                    </div>
                 </div>
-                <div className="space-y-1 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                    {groups.length === 0 ? (
-                        <div className="text-xs text-slate-600 text-center py-4 border border-dashed border-slate-800 rounded">
-                            NO_RELATIONS_FOUND
+
+                <div className="space-y-1 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                    {filteredGroups.length === 0 ? (
+                        <div className="text-xs text-slate-600 text-center py-8 border border-dashed border-slate-800 rounded flex flex-col items-center gap-2">
+                            <Shield size={24} className="opacity-20" />
+                            NO_MATCH_FOUND
                         </div>
-                    ) : groups.map((group) => (
+                    ) : filteredGroups.map((group) => (
                         <button
                             key={group.parentId}
-                            onClick={() => setSelectedParentId(group.parentId)}
+                            onClick={() => {
+                                setSelectedParentId(group.parentId);
+                                if (window.innerWidth < 1024) setMobileView('graph'); // Auto switch to graph on mobile click
+                            }}
                             className={`w-full text-left p-3 rounded border text-xs transition-all flex items-center justify-between group ${
                                 selectedParentId === group.parentId
                                     ? "bg-cyan-950/30 border-cyan-500/50 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.1)]"
@@ -355,8 +401,10 @@ export default function ConnectivityPage() {
                                     {group.children.length} NODES
                                 </p>
                             </div>
-                            {selectedParentId === group.parentId && (
+                            {selectedParentId === group.parentId ? (
                                 <Activity size={14} className="text-cyan-400 animate-pulse" />
+                            ) : (
+                                <Eye size={14} className="text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
                             )}
                         </button>
                     ))}
@@ -365,12 +413,14 @@ export default function ConnectivityPage() {
         </div>
 
         {/* RIGHT PANEL: VISUALIZER (R3F) */}
-        <div className="flex-1 flex flex-col gap-6">
+        {/* Hidden on mobile if view is list */}
+        <div className={`flex-1 flex flex-col gap-6 absolute lg:relative inset-0 bg-slate-950 lg:bg-transparent transition-all duration-300 ${mobileView === 'list' ? 'opacity-0 pointer-events-none lg:opacity-100 lg:pointer-events-auto' : 'opacity-100'}`}>
             {/* Mengirimkan data activeGroup ke dalam grafik 3D */}
             <NetworkGraph group={activeGroup} onNodeClick={handleNodeClick} />
 
-            <div className="flex justify-between items-center text-[10px] text-slate-500 px-2">
-                <p>MOUSE: Drag to rotate • Scroll to zoom • Click nodes to open details</p>
+            <div className="flex justify-between items-center text-[10px] text-slate-500 px-2 absolute bottom-2 w-full lg:relative lg:bottom-auto">
+                <p className="hidden lg:block">MOUSE: Drag to rotate • Scroll to zoom • Click nodes to open details</p>
+                <p className="lg:hidden">TOUCH: Drag to rotate • Pinch to zoom • Tap nodes</p>
                 <p>RENDERER: WebGL 2.0 (Three.js)</p>
             </div>
         </div>
