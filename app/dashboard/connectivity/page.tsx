@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { collection, query, onSnapshot, orderBy } from "firebase/firestore";
-// Menggunakan relative path untuk menghindari error build
 import { db, auth } from "../../../lib/firebase";
 import { Account, AccountCategory } from "../../../lib/types/schema";
 import { useRouter } from "next/navigation"; 
@@ -14,25 +13,17 @@ import {
   Briefcase, 
   Mail, 
   Music, 
-  Globe,
   ShoppingBag,
   MoreHorizontal,
   GitBranch,
   Activity,
   Search,
   Wifi,
-  Terminal,
-  Cpu,
   Shield,
-  ExternalLink,
   GraduationCap,
-  Link as LinkIcon,
-  ZoomIn,
-  ZoomOut,
-  Maximize,
-  Rotate3d
 } from "lucide-react";
 import { onAuthStateChanged } from "firebase/auth";
+import NetworkGraph from "../../../components/visual/NetworkGraph";
 
 // --- THEME CONFIG ---
 const THEME = {
@@ -46,40 +37,18 @@ const THEME = {
   success: "text-emerald-400",
 };
 
-// Helper Icon Kategori
-const getCategoryIcon = (category: AccountCategory, size = 16) => {
-  switch (category) {
-    case "GAME": return <Gamepad2 size={size} className="text-purple-400" />;
-    case "FINANCE": return <Wallet size={size} className="text-emerald-400" />;
-    case "SOCIAL": return <Share2 size={size} className="text-blue-400" />;
-    case "WORK": return <Briefcase size={size} className="text-amber-400" />;
-    case "UTILITY": return <Mail size={size} className="text-orange-400" />;
-    case "ENTERTAINMENT": return <Music size={size} className="text-pink-400" />;
-    case "EDUCATION": return <GraduationCap size={size} className="text-yellow-400" />;
-    case "ECOMMERCE": return <ShoppingBag size={size} className="text-rose-400" />;
-    default: return <MoreHorizontal size={size} className="text-slate-400" />;
-  }
-};
-
-// Interface tambahan untuk node anak
-interface ConnectedNode extends Account {
+// Interface tambahan untuk node anak (HARUS SAMA DENGAN NetworkGraph.tsx untuk konsistensi)
+export interface ConnectedNode extends Account {
     connectionPath?: string; 
     depth?: number;
     immediateParentId?: string; 
     isSmartLinked?: boolean; 
 }
 
-interface ConnectionGroup {
+export interface ConnectionGroup {
   parentId: string; 
   rootAccount?: Account; 
   children: ConnectedNode[];
-}
-
-// 3D Point Interface
-interface Point3D {
-    x: number;
-    y: number;
-    z: number;
 }
 
 export default function ConnectivityPage() {
@@ -96,12 +65,14 @@ export default function ConnectivityPage() {
     visitedIds = new Set<string>()
   ): { rootIdentifier: string, path: string[], rootAccount?: Account, immediateParentId?: string } => {
     
+    // Mencegah Infinite Loop (Circular Dependency)
     if (visitedIds.has(currentAcc.id)) {
         return { rootIdentifier: currentAcc.identifier, path: [], rootAccount: currentAcc };
     }
     visitedIds.add(currentAcc.id);
 
-    // 1. Cek Relasi Database (ID)
+    // 1. Cek Relasi Database (ID) - Prioritas Tertinggi
+    // Jika user sudah memilih parent secara manual di form create/edit
     if (currentAcc.linkedAccountId) {
         const parentAcc = allAccountsMap.get(currentAcc.linkedAccountId);
         if (parentAcc) {
@@ -115,12 +86,22 @@ export default function ConnectivityPage() {
         }
     }
 
-    // 2. Cek Relasi String (Linked Email/Identifier)
+    // 2. Cek Relasi String (Linked Email/Identifier) - Fallback Cerdas
+    // Jika tidak ada ID parent, kita cari berdasarkan string 'linkedEmail'
     if (currentAcc.linkedEmail && currentAcc.authMethod !== 'email') {
         const potentialParents: Account[] = [];
         
         for (const acc of allAccountsMap.values()) {
-            if (acc.identifier.toLowerCase() === currentAcc.linkedEmail.toLowerCase() && acc.id !== currentAcc.id) {
+            // Case-insensitive comparison
+            const targetIdentifier = currentAcc.linkedEmail.toLowerCase();
+            const candidateIdentifier = acc.identifier.toLowerCase();
+            const candidateServiceName = acc.serviceName.toLowerCase();
+
+            // Match Logic: Identifier sama ATAU Service Name sama (misal "Google")
+            if (
+                (candidateIdentifier === targetIdentifier || candidateServiceName === targetIdentifier) && 
+                acc.id !== currentAcc.id
+            ) {
                 potentialParents.push(acc);
             }
         }
@@ -128,6 +109,7 @@ export default function ConnectivityPage() {
         let bestParent: Account | undefined;
 
         if (potentialParents.length > 0) {
+            // Heuristik Pemilihan Parent Terbaik
             if (currentAcc.authMethod === 'sso_steam') {
                 bestParent = potentialParents.find(p => p.category === 'GAME') || 
                              potentialParents.find(p => p.serviceName.toLowerCase().includes('steam')) || 
@@ -136,7 +118,12 @@ export default function ConnectivityPage() {
                 bestParent = potentialParents.find(p => p.category === 'UTILITY') || 
                              potentialParents.find(p => p.serviceName.toLowerCase().includes('google')) || 
                              potentialParents[0];
+            } else if (currentAcc.authMethod === 'sso_supercell') { // [BARU] Logika Supercell
+                bestParent = potentialParents.find(p => p.serviceName.toLowerCase().includes('supercell')) ||
+                             potentialParents.find(p => p.identifier === currentAcc.linkedEmail) ||
+                             potentialParents[0];
             } else {
+                // Default: Ambil yang paling "mirip" atau yang pertama
                 bestParent = potentialParents[0];
             }
         }
@@ -150,6 +137,8 @@ export default function ConnectivityPage() {
                 immediateParentId: bestParent.id
             };
         } else {
+            // Jika linkedEmail ada tapi tidak ketemu akunnya di DB, 
+            // kita tetap grupkan berdasarkan string email tersebut (External Cluster)
             return { 
                 rootIdentifier: currentAcc.linkedEmail.toLowerCase(), 
                 path: ["External"],
@@ -158,6 +147,7 @@ export default function ConnectivityPage() {
         }
     }
 
+    // Jika tidak ada link sama sekali, dia adalah Root bagi dirinya sendiri
     return { rootIdentifier: currentAcc.identifier.toLowerCase(), path: [], rootAccount: currentAcc };
   };
 
@@ -191,12 +181,19 @@ export default function ConnectivityPage() {
             if (!tempGroups[rootId]) {
                 tempGroups[rootId] = {
                     parentId: rootId,
-                    rootAccount: trace.rootAccount,
+                    rootAccount: trace.rootAccount, // Bisa undefined jika External
                     children: []
                 };
             }
 
-            if (trace.rootAccount?.id !== acc.id || !trace.rootAccount) {
+            // Jika akun ini bukan root, masukkan sebagai anak
+            // ATAU jika dia root tapi ada akun lain yang menganggap dia root (logic handle later)
+            // Di sini kita masukkan SEMUA node ke dalam grupnya masing-masing
+            // kecuali dia adalah Root Account itu sendiri (agar tidak duplikat di visualisasi sebagai anak dan induk)
+            
+            const isSelfRoot = trace.rootAccount?.id === acc.id;
+            
+            if (!isSelfRoot) {
                 let connectionPath = "Direct Link";
                 if (trace.path.length > 0) {
                     connectionPath = `Via ${trace.path[0]}`;
@@ -211,13 +208,15 @@ export default function ConnectivityPage() {
             }
         });
 
-        // Phase 2: SMART RE-LINKING
+        // Phase 2: SMART RE-LINKING (Post-Processing)
+        // Memperbaiki relasi antar sibling agar struktur pohon lebih rapi
         Object.values(tempGroups).forEach(group => {
             const potentialHubs = group.children.filter(
                 c => c.category === 'GAME' || c.serviceName.toLowerCase().includes('steam')
             );
 
             group.children.forEach(child => {
+                // Logic khusus Steam
                 if (
                     child.authMethod === 'sso_steam' && 
                     child.immediateParentId === group.rootAccount?.id &&
@@ -234,12 +233,14 @@ export default function ConnectivityPage() {
             });
         });
 
+        // Filter grup yang valid (punya anak ATAU dia adalah single root yang valid)
+        // Kita ingin menampilkan grup meskipun isinya cuma 1 node (single parent) agar user sadar ada akun itu
         const groupedArray = Object.values(tempGroups)
-            .filter(g => g.children.length > 0)
             .sort((a, b) => b.children.length - a.children.length);
         
         setGroups(groupedArray);
         
+        // Auto-select logic
         if (!selectedParentId && groupedArray.length > 0) {
           setSelectedParentId(groupedArray[0].parentId);
         } else if (selectedParentId) {
@@ -261,11 +262,13 @@ export default function ConnectivityPage() {
     };
   }, [selectedParentId]);
 
-  const activeGroup = groups.find(g => g.parentId === selectedParentId);
-
+  // Handler interaksi
   const handleNodeClick = (account: Account) => {
     router.push(`/dashboard/vault/${account.id}`);
   };
+
+  // Group yang sedang aktif (diklik di sidebar)
+  const activeGroup = groups.find(g => g.parentId === selectedParentId);
 
   if (loading) {
     return (
@@ -303,7 +306,7 @@ export default function ConnectivityPage() {
                 <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
                     NEURAL_NET <span className="text-xs px-2 py-0.5 rounded bg-cyan-900/50 text-cyan-300 border border-cyan-800">v5.0 3D</span>
                 </h1>
-                <p className="text-xs text-slate-500 mt-1">3D INTERACTIVE TOPOLOGY ACTIVE</p>
+                <p className="text-xs text-slate-500 mt-1">ORGANIC TOPOLOGY ACTIVE</p>
             </div>
         </div>
         <div className="flex gap-4 text-xs">
@@ -361,393 +364,18 @@ export default function ConnectivityPage() {
             </div>
         </div>
 
-        {/* RIGHT PANEL: VISUALIZER */}
+        {/* RIGHT PANEL: VISUALIZER (R3F) */}
         <div className="flex-1 flex flex-col gap-6">
-            <div className={`rounded-xl border ${THEME.border} bg-[#020617] relative overflow-hidden flex items-center justify-center flex-1 min-h-[600px] shadow-inner`}>
-                {/* 3D Stars Background */}
-                <div className="absolute inset-0 opacity-40 pointer-events-none" 
-                    style={{ 
-                        backgroundImage: 'radial-gradient(circle, #334155 1px, transparent 1px)', 
-                        backgroundSize: '30px 30px' 
-                    }} 
-                />
-                
-                {activeGroup ? (
-                    <TopologyViewer 
-                      group={activeGroup} 
-                      onNodeClick={handleNodeClick} 
-                      allGroups={groups} 
-                    />
-                ) : (
-                    <div className="flex flex-col items-center text-slate-600 animate-pulse">
-                        <Shield size={64} className="mb-4 opacity-10" />
-                        <p className="text-xs tracking-widest font-mono">WAITING FOR TARGET SELECTION...</p>
-                    </div>
-                )}
+            {/* Mengirimkan data activeGroup ke dalam grafik 3D */}
+            <NetworkGraph group={activeGroup} onNodeClick={handleNodeClick} />
+
+            <div className="flex justify-between items-center text-[10px] text-slate-500 px-2">
+                <p>MOUSE: Drag to rotate • Scroll to zoom • Click nodes to open details</p>
+                <p>RENDERER: WebGL 2.0 (Three.js)</p>
             </div>
         </div>
 
       </div>
     </div>
   );
-}
-
-// --- TOPOLOGY VIEWER 3D NEURON STYLE ---
-function TopologyViewer({ group, onNodeClick, allGroups }: { group: ConnectionGroup, onNodeClick: (acc: Account) => void, allGroups: ConnectionGroup[] }) {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [dimensions, setDimensions] = useState({ w: 0, h: 0 });
-    
-    // 3D Controls State
-    const [rotation, setRotation] = useState({ x: 0, y: 0 });
-    const [zoom, setZoom] = useState(1);
-    const [isDragging, setIsDragging] = useState(false);
-    const [lastMouse, setLastMouse] = useState({ x: 0, y: 0 });
-
-    // Store calculated 3D positions
-    const [node3DPositions, setNode3DPositions] = useState<Map<string, Point3D>>(new Map());
-
-    useEffect(() => {
-        if (containerRef.current) {
-            setDimensions({
-                w: containerRef.current.clientWidth,
-                h: containerRef.current.clientHeight
-            });
-        }
-    }, [containerRef.current]);
-
-    // --- CALCULATE 3D LAYOUT (SPHERICAL) ---
-    useEffect(() => {
-        const newPositions = new Map<string, Point3D>();
-        
-        // Root at origin (0,0,0)
-        if (group.rootAccount) {
-            newPositions.set(group.rootAccount.id, { x: 0, y: 0, z: 0 });
-        }
-
-        // Group children by immediate parent to form clusters
-        const clusters: Record<string, ConnectedNode[]> = {};
-        
-        group.children.forEach(node => {
-            const parentId = node.immediateParentId || group.rootAccount?.id || "root";
-            if (!clusters[parentId]) clusters[parentId] = [];
-            clusters[parentId].push(node);
-        });
-
-        // Distribute nodes in 3D Space
-        // Strategy: Parent is center of its own sphere for its children
-        // Use recursive or layered approach. Here we simplify to Layers for 3D look.
-        
-        const layerRadiusBase = 180; // Distance between layers
-
-        // Process children level by level or by cluster
-        // Simple approach: Root -> Children on Sphere -> Grandchildren on smaller spheres around children
-        
-        // 1. Level 1 Children (Directly connected to Root)
-        const rootId = group.rootAccount?.id || "root";
-        const level1Nodes = clusters[rootId] || [];
-        
-        level1Nodes.forEach((node, idx) => {
-            // Fibonacci Sphere distribution for even spread
-            const samples = level1Nodes.length;
-            const phi = Math.acos(1 - 2 * (idx + 0.5) / samples);
-            const theta = Math.PI * (1 + Math.sqrt(5)) * (idx + 0.5);
-            
-            const r = layerRadiusBase;
-            
-            const x = r * Math.sin(phi) * Math.cos(theta);
-            const y = r * Math.sin(phi) * Math.sin(theta);
-            const z = r * Math.cos(phi);
-            
-            newPositions.set(node.id, { x, y, z });
-
-            // 2. Level 2 Children (Grandchildren) - cluster around their parent
-            const grandChildren = clusters[node.id] || [];
-            if (grandChildren.length > 0) {
-                const subRadius = 80;
-                grandChildren.forEach((gc, gcIdx) => {
-                    // Random spherical offset from parent
-                    const gcPhi = Math.acos(1 - 2 * (gcIdx + 0.5) / grandChildren.length);
-                    const gcTheta = Math.PI * (1 + Math.sqrt(5)) * (gcIdx + 0.5);
-
-                    // Add slight random jitter
-                    const jitter = 20;
-                    const r2 = subRadius + (Math.random() * jitter);
-
-                    const dx = r2 * Math.sin(gcPhi) * Math.cos(gcTheta);
-                    const dy = r2 * Math.sin(gcPhi) * Math.sin(gcTheta);
-                    const dz = r2 * Math.cos(gcPhi);
-
-                    newPositions.set(gc.id, {
-                        x: x + dx, // Parent X + offset
-                        y: y + dy,
-                        z: z + dz
-                    });
-                });
-            }
-        });
-
-        setNode3DPositions(newPositions);
-    }, [group]);
-
-
-    // --- 3D PROJECTION HELPER ---
-    // Projects 3D point (x,y,z) to 2D screen (x,y) with scale based on Z (perspective)
-    const project = (point: Point3D) => {
-        // 1. Rotate around Y axis
-        const cosY = Math.cos(rotation.y);
-        const sinY = Math.sin(rotation.y);
-        const x1 = point.x * cosY - point.z * sinY;
-        const z1 = point.z * cosY + point.x * sinY;
-
-        // 2. Rotate around X axis
-        const cosX = Math.cos(rotation.x);
-        const sinX = Math.sin(rotation.x);
-        const y2 = point.y * cosX - z1 * sinX;
-        const z2 = z1 * cosX + point.y * sinX;
-
-        // 3. Perspective Projection
-        // Camera distance
-        const cameraZ = 800;
-        const perspective = cameraZ / (cameraZ + z2);
-        
-        // Final screen coords
-        const x2d = x1 * perspective * zoom + dimensions.w / 2;
-        const y2d = y2 * perspective * zoom + dimensions.h / 2;
-        const scale = perspective * zoom;
-
-        return { x: x2d, y: y2d, scale, zIndex: z2 };
-    };
-
-    // --- MOUSE HANDLERS ---
-    const handleMouseDown = (e: React.MouseEvent) => {
-        setIsDragging(true);
-        setLastMouse({ x: e.clientX, y: e.clientY });
-    };
-
-    const handleMouseMove = (e: React.MouseEvent) => {
-        if (!isDragging) return;
-        const deltaX = e.clientX - lastMouse.x;
-        const deltaY = e.clientY - lastMouse.y;
-        
-        setRotation(prev => ({
-            x: prev.x - deltaY * 0.005,
-            y: prev.y + deltaX * 0.005
-        }));
-        
-        setLastMouse({ x: e.clientX, y: e.clientY });
-    };
-
-    const handleMouseUp = () => setIsDragging(false);
-    
-    const handleWheel = (e: React.WheelEvent) => {
-        e.stopPropagation();
-        const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        setZoom(prev => Math.min(Math.max(prev * delta, 0.2), 3));
-    };
-
-    const handleReset = () => {
-        setRotation({ x: 0, y: 0 });
-        setZoom(1);
-    };
-
-    // --- PREPARE RENDER OBJECTS ---
-    // Convert 3D map to 2D projected items list, sorted by Z depth
-    const renderItems = useMemo(() => {
-        const items: any[] = [];
-
-        // Project Root
-        if (group.rootAccount && node3DPositions.has(group.rootAccount.id)) {
-            const p3 = node3DPositions.get(group.rootAccount.id)!;
-            const proj = project(p3);
-            items.push({
-                type: 'node',
-                data: group.rootAccount,
-                ...proj,
-                isRoot: true
-            });
-        }
-
-        // Project Children
-        group.children.forEach(child => {
-            if (!node3DPositions.has(child.id)) return;
-            const p3 = node3DPositions.get(child.id)!;
-            const proj = project(p3);
-            items.push({
-                type: 'node',
-                data: child,
-                ...proj,
-                isRoot: false
-            });
-
-            // Calculate Link (Bezier Curve in 3D projected to 2D)
-            const parentId = child.immediateParentId || group.rootAccount?.id || 'root';
-            if (node3DPositions.has(parentId)) {
-                const parentP3 = node3DPositions.get(parentId)!;
-                const parentProj = project(parentP3);
-
-                // Control Point for Curve (Midpoint + Offset in 3D)
-                // This makes the line look like a 3D arc
-                const midX = (p3.x + parentP3.x) / 2;
-                const midY = (p3.y + parentP3.y) / 2;
-                const midZ = (p3.z + parentP3.z) / 2;
-                
-                // Offset control point away from center to create arc
-                // Using spherical normal for "outward" curve
-                const len = Math.sqrt(midX*midX + midY*midY + midZ*midZ) || 1;
-                const curveIntensity = 50;
-                const cp3 = {
-                    x: midX + (midX/len) * curveIntensity,
-                    y: midY + (midY/len) * curveIntensity,
-                    z: midZ + (midZ/len) * curveIntensity
-                };
-                const cpProj = project(cp3);
-
-                items.push({
-                    type: 'link',
-                    data: child, // Link belongs to child
-                    start: parentProj,
-                    end: proj,
-                    cp: cpProj, // Control point
-                    zIndex: (parentProj.zIndex + proj.zIndex) / 2 // Average Z for sorting
-                });
-            }
-        });
-
-        // Sort by Z Index (Painter's Algorithm) - Draw furthest first
-        return items.sort((a, b) => b.zIndex - a.zIndex); // Higher Z means further away in our projection math (z2)
-    }, [node3DPositions, rotation, zoom, group]);
-
-
-    return (
-        <div 
-            ref={containerRef} 
-            className="w-full h-full relative cursor-move overflow-hidden select-none"
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onWheel={handleWheel}
-        >
-            {/* CONTROLS */}
-            <div className="absolute bottom-4 right-4 flex gap-2 z-50 pointer-events-auto">
-                <button onClick={(e) => { e.stopPropagation(); setZoom(z => Math.max(0.2, z - 0.2))}} className="p-2 bg-slate-900 border border-slate-700 rounded hover:bg-slate-800 text-slate-400"><ZoomOut size={16} /></button>
-                <button onClick={(e) => { e.stopPropagation(); handleReset()}} className="p-2 bg-slate-900 border border-slate-700 rounded hover:bg-slate-800 text-slate-400"><Rotate3d size={16} /></button>
-                <button onClick={(e) => { e.stopPropagation(); setZoom(z => Math.min(3, z + 0.2))}} className="p-2 bg-slate-900 border border-slate-700 rounded hover:bg-slate-800 text-slate-400"><ZoomIn size={16} /></button>
-            </div>
-
-            <svg className="w-full h-full pointer-events-none">
-                <defs>
-                    {/* GLOW FILTERS */}
-                    <filter id="glow-cyan" x="-50%" y="-50%" width="200%" height="200%">
-                        <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-                        <feMerge>
-                            <feMergeNode in="coloredBlur" />
-                            <feMergeNode in="SourceGraphic" />
-                        </feMerge>
-                    </filter>
-                    <filter id="glow-purple" x="-50%" y="-50%" width="200%" height="200%">
-                        <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-                        <feMerge>
-                            <feMergeNode in="coloredBlur" />
-                            <feMergeNode in="SourceGraphic" />
-                        </feMerge>
-                    </filter>
-                    <radialGradient id="nodeGradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
-                        <stop offset="0%" stopColor="#22d3ee" stopOpacity="1" />
-                        <stop offset="100%" stopColor="#083344" stopOpacity="0.8" />
-                    </radialGradient>
-                </defs>
-
-                {renderItems.map((item, idx) => {
-                    if (item.type === 'link') {
-                        const isSmart = item.data.isSmartLinked;
-                        return (
-                            <g key={`link-${idx}`} className="transition-opacity duration-500">
-                                <path 
-                                    d={`M ${item.start.x} ${item.start.y} Q ${item.cp.x} ${item.cp.y} ${item.end.x} ${item.end.y}`}
-                                    stroke={isSmart ? "#a855f7" : "#0e7490"} 
-                                    strokeWidth={(isSmart ? 1.5 : 1) * item.end.scale} 
-                                    fill="none"
-                                    opacity={Math.max(0.2, 0.6 * item.end.scale)} // Fade distant lines
-                                    strokeDasharray={isSmart ? "4 2" : "0"}
-                                />
-                                {/* Pulsing Data Packet */}
-                                <circle r={3 * item.end.scale} fill={isSmart ? "#d8b4fe" : "#67e8f9"}>
-                                    <animateMotion 
-                                        dur={`${3 + Math.random()}s`} 
-                                        repeatCount="indefinite"
-                                        path={`M ${item.start.x} ${item.start.y} Q ${item.cp.x} ${item.cp.y} ${item.end.x} ${item.end.y}`}
-                                    />
-                                </circle>
-                            </g>
-                        );
-                    }
-
-                    if (item.type === 'node') {
-                        if (item.isRoot) {
-                            return (
-                                <g 
-                                    key={`root-${item.data.id}`}
-                                    transform={`translate(${item.x}, ${item.y}) scale(${item.scale})`}
-                                    className={`cursor-pointer pointer-events-auto hover:scale-110 transition-transform`}
-                                    onClick={(e) => { e.stopPropagation(); onNodeClick(item.data); }}
-                                >
-                                    <circle r="30" fill="url(#nodeGradient)" filter="url(#glow-cyan)" className="animate-pulse" />
-                                    <circle r="35" fill="none" stroke="#22d3ee" strokeWidth="1" opacity="0.5">
-                                        <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="10s" repeatCount="indefinite" />
-                                    </circle>
-                                    <foreignObject x="-60" y="35" width="120" height="40">
-                                        <div className="bg-slate-950/80 border border-cyan-500/50 rounded px-2 py-1 text-center backdrop-blur-sm">
-                                            <p className="text-[10px] font-bold text-cyan-300 truncate">
-                                                {item.data.serviceName}
-                                            </p>
-                                        </div>
-                                    </foreignObject>
-                                </g>
-                            );
-                        } else {
-                            const isSmart = item.data.isSmartLinked;
-                            return (
-                                <g 
-                                    key={`node-${item.data.id}`}
-                                    transform={`translate(${item.x}, ${item.y}) scale(${item.scale})`}
-                                    className="cursor-pointer pointer-events-auto group/node"
-                                    onClick={(e) => { e.stopPropagation(); onNodeClick(item.data); }}
-                                >
-                                    {/* Glow Halo */}
-                                    <circle r="12" fill={isSmart ? "#7e22ce" : "#0e7490"} opacity="0.4" filter={isSmart ? "url(#glow-purple)" : "url(#glow-cyan)"} />
-                                    
-                                    {/* Core */}
-                                    <circle 
-                                        r="8" 
-                                        fill={isSmart ? "#a855f7" : "#06b6d4"} 
-                                        className="transition-all duration-300 group-hover/node:r-10"
-                                    />
-                                    
-                                    {/* Icon Container */}
-                                    <foreignObject x="-8" y="-8" width="16" height="16" className="pointer-events-none">
-                                        <div className="flex items-center justify-center w-full h-full text-white/90">
-                                            {getCategoryIcon(item.data.category, 10)}
-                                        </div>
-                                    </foreignObject>
-
-                                    {/* Tooltip on Hover (Always on top visually) */}
-                                    <g className="opacity-0 group-hover/node:opacity-100 transition-opacity duration-200 pointer-events-none" style={{zIndex: 9999}}>
-                                        <foreignObject x="15" y="-20" width="140" height="60">
-                                            <div className="bg-slate-900/90 border border-slate-700 p-2 rounded shadow-xl backdrop-blur-md">
-                                                <p className="text-[10px] font-bold text-white truncate">{item.data.serviceName}</p>
-                                                <p className="text-[8px] text-slate-400 truncate">{item.data.identifier}</p>
-                                                {isSmart && <p className="text-[8px] text-purple-400 font-bold mt-1">Smart Linked</p>}
-                                            </div>
-                                        </foreignObject>
-                                    </g>
-                                </g>
-                            );
-                        }
-                    }
-                    return null;
-                })}
-            </svg>
-        </div>
-    );
 }

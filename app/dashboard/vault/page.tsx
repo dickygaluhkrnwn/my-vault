@@ -23,7 +23,6 @@ import {
   Briefcase, 
   Mail, 
   Music, 
-  Lock, 
   MoreVertical,
   Loader2,
   X,
@@ -36,7 +35,8 @@ import {
   Database,
   GraduationCap,
   ShoppingBag,
-  MoreHorizontal
+  MoreHorizontal,
+  Clock
 } from "lucide-react";
 import { onAuthStateChanged } from "firebase/auth";
 import { cn, formatDate } from "@/lib/utils";
@@ -411,8 +411,8 @@ function VaultContent() {
                     ))}
 
                     <div className="flex justify-between items-end pt-2">
-                      <span className="text-[9px] text-slate-600 font-mono">
-                          UPD: {formatDate(account.lastUpdated)}
+                      <span className="text-[9px] text-slate-600 font-mono flex items-center gap-1">
+                          <Clock size={8} /> {formatDate(account.lastUpdated)}
                       </span>
                       <span className="text-[9px] font-bold text-slate-700 group-hover:text-cyan-600 transition-colors uppercase tracking-widest">
                           {account.owner}

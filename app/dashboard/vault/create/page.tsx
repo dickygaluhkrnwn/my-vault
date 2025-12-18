@@ -69,6 +69,7 @@ const AUTH_METHODS: { label: string; value: AuthMethod }[] = [
   { label: "SSO: Apple ID", value: "sso_apple" },
   { label: "SSO: Facebook", value: "sso_facebook" },
   { label: "SSO: Steam", value: "sso_steam" },
+  { label: "SSO: Supercell ID", value: "sso_supercell" }, // [BARU] Misi 1.2 Selesai
   { label: "Linked / 3rd Party", value: "linked_account" },
   { label: "Other Method", value: "other" },
 ];
@@ -124,7 +125,8 @@ export default function CreateAccountPage() {
   // [LOGIKA BARU] Rekomendasi Auth Method berdasarkan Kategori
   useEffect(() => {
     if (formData.category === "GAME") {
-      setFormData(prev => ({ ...prev, authMethod: "username" })); // Game biasanya username/ign
+      // Prioritaskan username, tapi user bisa ganti ke Supercell ID nanti
+      setFormData(prev => ({ ...prev, authMethod: "username" })); 
     } else if (["FINANCE", "UTILITY", "WORK"].includes(formData.category)) {
       setFormData(prev => ({ ...prev, authMethod: "email" }));
     }
@@ -147,7 +149,8 @@ export default function CreateAccountPage() {
       
       return textMatch;
     });
-    setFilteredParents(filtered.slice(0, 5)); // Ambil 5 teratas
+    // [PERBAIKAN] Meningkatkan limit dari 5 ke 50 agar semua akun terkait muncul
+    setFilteredParents(filtered.slice(0, 50)); 
   }, [formData.linkedEmail, parentSuggestions]);
 
   // Click Outside to close suggestions
@@ -265,7 +268,8 @@ export default function CreateAccountPage() {
     "sso_google", 
     "sso_steam", 
     "sso_facebook", 
-    "sso_apple"
+    "sso_apple",
+    "sso_supercell" // [BARU] Ditambahkan agar input parent muncul saat Supercell ID dipilih
   ].includes(formData.authMethod);
 
   return (
@@ -304,7 +308,6 @@ export default function CreateAccountPage() {
             <div className="space-y-1 group">
               <label className="text-xs font-bold text-slate-500 group-focus-within:text-cyan-400 transition-colors">SERVICE_NAME</label>
               <div className="flex items-center bg-slate-950 border border-slate-800 rounded p-2 focus-within:border-cyan-500/50 transition-all">
-                {/* FIX: Use HTML entity &gt; instead of > to prevent parser error */}
                 <span className="text-slate-600 mr-2">&gt;</span> 
                 <input required name="serviceName" value={formData.serviceName} onChange={handleInputChange} placeholder="Ex: Mobile Legends, BCA" className="bg-transparent border-none outline-none w-full text-sm placeholder:text-slate-700" />
               </div>
@@ -436,9 +439,8 @@ export default function CreateAccountPage() {
                   </div>
                 )}
               </div>
-              {/* FIX: Replaced -> with &gt; to prevent syntax error */}
               <p className="text-[10px] text-slate-600 italic">
-                *Tautkan akun ini ke akun induknya (misal: Game -&gt; Steam, Shopee -&gt; Google) untuk visualisasi konektivitas.
+                *Tautkan akun ini ke akun induknya (misal: Game &gt; Steam, Shopee &gt; Google) untuk visualisasi konektivitas.
               </p>
             </div>
           </div>

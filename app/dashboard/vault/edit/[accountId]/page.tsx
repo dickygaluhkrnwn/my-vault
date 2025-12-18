@@ -71,6 +71,7 @@ const AUTH_METHODS: { label: string; value: AuthMethod }[] = [
   { label: "SSO: Apple ID", value: "sso_apple" },
   { label: "SSO: Facebook", value: "sso_facebook" },
   { label: "SSO: Steam", value: "sso_steam" },
+  { label: "SSO: Supercell ID", value: "sso_supercell" }, // [UPDATED] Ditambahkan
   { label: "Linked / 3rd Party", value: "linked_account" },
   { label: "Other Method", value: "other" },
 ];
@@ -148,7 +149,8 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
       
       return typeMatch && textMatch;
     });
-    setFilteredParents(filtered.slice(0, 5));
+    // [UPDATED] Limit dinaikkan ke 50 agar konsisten dengan halaman Create/Connectivity
+    setFilteredParents(filtered.slice(0, 50));
   }, [formData.linkedEmail, parentType, parentSuggestions, accountId]);
 
   // Click Outside
@@ -345,7 +347,8 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
     "sso_google", 
     "sso_steam", 
     "sso_facebook", 
-    "sso_apple"
+    "sso_apple",
+    "sso_supercell" // [UPDATED] Ditambahkan
   ].includes(formData.authMethod);
 
   if (loading) {
@@ -503,7 +506,7 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
                 )}
               </div>
               {/* FIX: Replaced -> with &gt; to prevent syntax error */}
-              <p className="text-[10px] text-slate-600 italic">*Tautkan akun ini ke akun induknya (misal: Game -&gt; Steam, Shopee -&gt; Google) untuk visualisasi konektivitas.</p>
+              <p className="text-[10px] text-slate-600 italic">*Tautkan akun ini ke akun induknya (misal: Game &gt; Steam, Shopee &gt; Google) untuk visualisasi konektivitas.</p>
             </div>
           </div>
         </div>

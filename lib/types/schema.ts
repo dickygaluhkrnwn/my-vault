@@ -22,6 +22,7 @@ export type AuthMethod =
   | "sso_apple" 
   | "sso_facebook"
   | "sso_steam" 
+  | "sso_supercell" // [UPDATED] Menambahkan dukungan untuk Supercell ID
   | "linked_account" // Untuk akun yang numpang login (misal: Login Game via Steam)
   | "other";
 
