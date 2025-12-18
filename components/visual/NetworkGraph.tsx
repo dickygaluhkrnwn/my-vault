@@ -355,7 +355,7 @@ function Scene({ group, onNodeClick }: { group?: ConnectionGroup, onNodeClick?: 
 
       <EffectComposer>
         <Bloom luminanceThreshold={1} mipmapBlur intensity={1.2} radius={0.5} />
-        <Noise opacity={0.04} /> {/* Noise dikurangi */}
+        <Noise opacity={0.04} />
         <Vignette eskil={false} offset={0.1} darkness={1.1} />
       </EffectComposer>
 
