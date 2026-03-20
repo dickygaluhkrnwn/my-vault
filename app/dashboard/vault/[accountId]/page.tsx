@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Account, AccountCategory } from "@/lib/types/schema";
 import { useAuth } from "@/components/auth-provider";
@@ -15,20 +15,26 @@ import {
   Music, Lock, Globe, Smartphone, Server, CreditCard, Hash, 
   Loader2, Link as LinkIcon, ExternalLink, Terminal, Cpu, 
   Activity, GraduationCap, BookOpen, Award, Percent, ShoppingBag, 
-  MoreHorizontal, Clock, Key, Database, Trash2, AlertTriangle
+  MoreHorizontal, Clock, Key, Database, Trash2, AlertTriangle,
+  Send, XCircle
 } from "lucide-react";
 
 export default function AccountDetailPage({ params }: { params: Promise<{ accountId: string }> }) {
   const { accountId } = use(params);
   const router = useRouter();
   const { theme } = useTheme();
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   
   const [account, setAccount] = useState<Account | null>(null);
   const [connectedAccounts, setConnectedAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // States untuk Fitur Share (Burn-on-Read)
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   // Helper Copy Text
   const handleCopy = (text: string | undefined | null, fieldName: string) => {
@@ -101,6 +107,46 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
     fetchAccountData();
   }, [accountId, user, router]);
 
+  // LOGIKA GENERATE LINK (BURN-ON-READ)
+  const handleGenerateShareLink = async () => {
+    if (!account || !user || isGuest) {
+      if (isGuest) alert("Sesi Tamu tidak dapat membagikan tautan keamanan.");
+      return;
+    }
+    
+    setIsGeneratingLink(true);
+    setGeneratedLink(null);
+
+    try {
+      // 1. Siapkan payload data yang akan dibagikan (Hanya sebagian info esensial)
+      const sharePayload = {
+        serviceName: account.serviceName,
+        category: account.category,
+        identifier: account.identifier,
+        password: account.password,
+        ownerName: user.displayName || user.email?.split('@')[0] || "Seseorang",
+        createdAt: new Date(),
+        // Link expired dalam 24 Jam
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+      };
+
+      // 2. Simpan ke koleksi public dengan path yang aman
+      const appId = typeof window !== 'undefined' && (window as any).__app_id ? (window as any).__app_id : 'default-app-id';
+      const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'shared_links'), sharePayload);
+      
+      // 3. Buat URL Publik
+      const origin = window.location.origin;
+      const url = `${origin}/share/${docRef.id}`;
+      setGeneratedLink(url);
+
+    } catch (error) {
+      console.error("Error generating link:", error);
+      alert("Gagal membuat tautan. Silakan coba lagi.");
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  };
+
   // --- PEMETAAN STYLE TEMA DINAMIS ---
   const styles = {
     formal: {
@@ -112,7 +158,9 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
       accent: "text-blue-600 dark:text-blue-400",
       accentBg: "bg-blue-600 dark:bg-blue-500",
       btnOutline: "border border-slate-200 dark:border-slate-800 hover:border-blue-500 hover:text-blue-600 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 rounded-lg shadow-sm",
+      btnShare: "bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow-md border-transparent",
       fieldBg: "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm",
+      modalBg: "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xl rounded-2xl"
     },
     hacker: {
       wrapper: "font-mono text-green-500",
@@ -123,7 +171,9 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
       accent: "text-cyan-400",
       accentBg: "bg-cyan-500",
       btnOutline: "border border-green-900/50 hover:border-green-500/50 bg-black text-green-500 rounded-sm",
+      btnShare: "bg-purple-900/40 hover:bg-purple-900/60 text-purple-400 border border-purple-500/50 rounded-sm shadow-[0_0_15px_rgba(168,85,247,0.2)]",
       fieldBg: "bg-black border border-green-900/80 shadow-inner",
+      modalBg: "bg-[#050505] border-purple-900/50 shadow-[0_0_30px_rgba(168,85,247,0.15)] rounded-sm"
     },
     casual: {
       wrapper: "font-sans text-stone-800 dark:text-stone-100",
@@ -134,7 +184,9 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
       accent: "text-orange-500 dark:text-orange-400",
       accentBg: "bg-gradient-to-r from-orange-500 to-pink-500",
       btnOutline: "border border-orange-200 dark:border-stone-800 hover:border-orange-400 hover:text-orange-500 bg-white/50 dark:bg-stone-950/50 rounded-xl shadow-sm",
+      btnShare: "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl shadow-md border-transparent",
       fieldBg: "bg-white dark:bg-stone-950 border border-orange-200 dark:border-stone-800 shadow-sm",
+      modalBg: "bg-white/90 dark:bg-stone-900/90 backdrop-blur-xl border-purple-200 dark:border-purple-900/50 shadow-2xl rounded-3xl"
     }
   };
 
@@ -153,6 +205,75 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
 
   return (
     <div className={cn("min-h-[85vh] relative flex flex-col gap-6 animate-in fade-in duration-500 pb-20", cs.wrapper)}>
+
+      {/* --- MODAL BAGIKAN LINK --- */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => { e.stopPropagation(); if (!isGeneratingLink) setShowShareModal(false); }}>
+          <div 
+            className={cn("max-w-md w-full p-6 lg:p-8 space-y-6 relative overflow-hidden border", cs.modalBg)} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            {theme === 'hacker' && <div className="absolute top-0 left-0 w-full h-1 bg-purple-500 animate-pulse" />}
+            
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-3">
+                <div className={cn("p-2 rounded-full border", theme === 'hacker' ? 'bg-purple-950/50 border-purple-900 text-purple-400' : 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-900/50 text-purple-600 dark:text-purple-400')}>
+                  <Share2 size={24} />
+                </div>
+                <div>
+                  <h3 className={cn("text-lg font-bold tracking-tight", theme === 'hacker' && 'tracking-widest uppercase text-purple-400 font-mono')}>Bagikan Akses</h3>
+                  <p className={cn("text-[10px] uppercase tracking-wider font-bold", cs.textSub)}>One-Time Secure Link</p>
+                </div>
+              </div>
+              <button onClick={() => setShowShareModal(false)} disabled={isGeneratingLink} className="opacity-50 hover:opacity-100 transition-opacity disabled:opacity-30"><XCircle size={24}/></button>
+            </div>
+
+            {!generatedLink ? (
+              <>
+                <p className={cn("text-sm leading-relaxed border-l-2 pl-3", theme === 'hacker' ? 'border-purple-900/50' : 'border-purple-200 dark:border-purple-900/50', cs.textSub)}>
+                  Sistem akan membuat tautan rahasia yang berisi data <strong className={cs.textMain}>{account.serviceName}</strong>. 
+                  <br/><br/>
+                  <span className="text-red-500 font-bold font-mono text-[10px] bg-red-500/10 px-2 py-1 rounded">BURN-ON-READ PROTOCOL:</span> Tautan ini akan <strong className="text-red-500">hancur selamanya</strong> setelah 1 kali dibuka oleh penerima, atau hangus otomatis dalam 24 Jam.
+                </p>
+
+                <div className="pt-2">
+                  <button 
+                    onClick={handleGenerateShareLink}
+                    disabled={isGeneratingLink}
+                    className={cn("w-full py-3.5 text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50", cs.btnShare)}
+                  >
+                    {isGeneratingLink ? <Loader2 size={18} className="animate-spin"/> : <Send size={18} />}
+                    {isGeneratingLink ? (theme === 'hacker' ? 'ENCRYPTING_PAYLOAD...' : 'Membuat Tautan...') : (theme === 'hacker' ? 'GENERATE_SECURE_LINK' : 'Buat Tautan Rahasia')}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-4 animate-in zoom-in-95 duration-300">
+                <div className="flex flex-col items-center justify-center py-4 gap-2">
+                   <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center mb-2">
+                     <Check size={24} strokeWidth={3} />
+                   </div>
+                   <h4 className={cn("font-bold text-emerald-500", theme === 'hacker' && 'font-mono uppercase tracking-wider')}>LINK BERHASIL DIBUAT</h4>
+                </div>
+
+                <div className={cn("flex items-center gap-3 p-3 md:p-4 rounded-xl relative overflow-hidden group", cs.fieldBg, theme === 'hacker' && 'rounded-sm', theme === 'casual' && 'rounded-2xl')}>
+                  <div className={cn("flex-1 font-mono overflow-hidden text-xs font-medium truncate", cs.textMain)}>
+                     {generatedLink}
+                  </div>
+                  <button 
+                    onClick={() => handleCopy(generatedLink, 'share_link')}
+                    className={cn("p-2 rounded-lg transition-colors bg-purple-500 text-white hover:bg-purple-600 shrink-0", theme === 'hacker' && 'rounded-sm')}
+                  >
+                    {copiedField === 'share_link' ? <Check size={16} /> : <Copy size={16} />}
+                  </button>
+                </div>
+
+                <p className={cn("text-[10px] text-center uppercase tracking-widest font-bold text-red-500 mt-4")}>Peringatan: Jangan klik link Anda sendiri, atau data akan hangus!</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* MAIN IDENTITY BANNER (HERO) */}
       <div className={cn("overflow-hidden relative mt-2", cs.panel)}>
@@ -191,14 +312,23 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
                  </div>
               </div>
 
-              {/* EDIT BUTTON MOVED TO HERO */}
-              <button 
-                onClick={() => router.push(`/dashboard/vault/edit/${account.id}`)}
-                className={cn("flex items-center justify-center gap-2 px-5 py-2.5 transition-all text-xs font-bold shadow-sm active:scale-95 w-full sm:w-auto shrink-0", cs.btnOutline)}
-              >
-                <Pencil size={14} />
-                <span>{theme === 'hacker' ? 'MODIFY_NODE' : 'EDIT DATA'}</span>
-              </button>
+              {/* ACTION BUTTONS */}
+              <div className="flex items-center gap-3 w-full sm:w-auto shrink-0 mt-2 sm:mt-0">
+                <button 
+                  onClick={() => setShowShareModal(true)}
+                  className={cn("flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 transition-all text-xs font-bold active:scale-95", cs.btnShare)}
+                >
+                  <Share2 size={14} />
+                  <span>{theme === 'hacker' ? 'SHARE_NODE' : 'BAGIKAN'}</span>
+                </button>
+                <button 
+                  onClick={() => router.push(`/dashboard/vault/edit/${account.id}`)}
+                  className={cn("flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 transition-all text-xs font-bold active:scale-95", cs.btnOutline)}
+                >
+                  <Pencil size={14} />
+                  <span>{theme === 'hacker' ? 'MODIFY_NODE' : 'EDIT'}</span>
+                </button>
+              </div>
             </div>
             
             {/* Meta Footer of Banner */}

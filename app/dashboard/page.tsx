@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { collection, query, onSnapshot, where } from "firebase/firestore";
 import { 
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 import type { Theme } from "@/components/theme-provider";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { theme } = useTheme();
   const { user, isGuest } = useAuth();
   
@@ -110,7 +112,6 @@ export default function DashboardPage() {
         const diffTime = Math.abs(now.getTime() - logDate.getTime());
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         if (diffDays >= 0 && diffDays < 30) {
-            // Index 29 adalah hari ini, index 0 adalah 29 hari yang lalu
             timeline[29 - diffDays]++; 
         }
 
@@ -124,9 +125,9 @@ export default function DashboardPage() {
         });
       });
 
-      // Hitung Skor Keamanan Real
-      const penaltyAlerts = newStats.alerts * 15; // -15 poin per akun bocor/banned
-      const penaltyUnlinked = (newStats.total - newStats.linked) * 2; // -2 poin per akun yatim piatu
+      // Hitung Skor Keamanan Keseluruhan
+      const penaltyAlerts = newStats.alerts * 15; 
+      const penaltyUnlinked = (newStats.total - newStats.linked) * 2; 
       const finalScore = Math.max(0, 100 - penaltyAlerts - penaltyUnlinked);
 
       logs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
@@ -157,7 +158,10 @@ export default function DashboardPage() {
       accent: "text-blue-600 dark:text-blue-400",
       accentBg: "bg-blue-600 dark:bg-blue-500",
       graphBar: "bg-blue-500",
-      logItem: "bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 hover:border-blue-200"
+      logItem: "bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 hover:border-blue-200",
+      card: "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-blue-500/30 hover:shadow-lg shadow-slate-200 dark:shadow-none",
+      cardHeader: "bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800",
+      progressBg: "bg-slate-200 dark:bg-slate-800"
     },
     hacker: {
       wrapper: "font-mono text-green-500",
@@ -167,7 +171,10 @@ export default function DashboardPage() {
       accent: "text-cyan-400",
       accentBg: "bg-cyan-500",
       graphBar: "bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.6)]",
-      logItem: "bg-[#020202] border border-green-900/40 hover:border-green-500/50"
+      logItem: "bg-[#020202] border border-green-900/40 hover:border-green-500/50",
+      card: "bg-[#020202] border-green-900/50 hover:border-green-500/50 hover:shadow-[0_0_20px_rgba(34,197,94,0.1)] relative",
+      cardHeader: "bg-[#050505] border-b border-green-900/50 relative overflow-hidden",
+      progressBg: "bg-green-950"
     },
     casual: {
       wrapper: "font-sans text-stone-800 dark:text-stone-100",
@@ -177,7 +184,10 @@ export default function DashboardPage() {
       accent: "text-orange-500 dark:text-orange-400",
       accentBg: "bg-orange-500",
       graphBar: "bg-gradient-to-t from-pink-500 to-orange-400",
-      logItem: "bg-orange-50/50 dark:bg-stone-950/50 border border-orange-100 dark:border-stone-800 hover:border-orange-300"
+      logItem: "bg-orange-50/50 dark:bg-stone-950/50 border border-orange-100 dark:border-stone-800 hover:border-orange-300",
+      card: "bg-white dark:bg-stone-900 border-orange-200 dark:border-stone-800 hover:border-orange-400 hover:shadow-xl shadow-orange-900/5 dark:shadow-none rounded-3xl",
+      cardHeader: "bg-orange-50/50 dark:bg-stone-950/50 border-b border-orange-100 dark:border-stone-800",
+      progressBg: "bg-orange-100 dark:bg-stone-800"
     }
   };
 
@@ -194,7 +204,6 @@ export default function DashboardPage() {
     );
   }
 
-  // Helper Chart
   const maxActivity = Math.max(...activityTimeline, 1);
 
   return (
@@ -227,7 +236,6 @@ export default function DashboardPage() {
                 </div>
             </div>
             
-            {/* REAL SECURITY SCORE */}
             <div className="space-y-1">
                 <div className={cn("flex items-center gap-2", cs.textSub)}>
                     <ShieldCheck size={14} /> VAULT_HEALTH
@@ -272,7 +280,6 @@ export default function DashboardPage() {
                         const isActive = count > 0;
                         return (
                             <div key={i} className="flex-1 flex flex-col justify-end group relative h-full">
-                                {/* Tooltip for data points */}
                                 {isActive && (
                                   <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-slate-800 text-white text-[10px] px-2 py-1 rounded pointer-events-none transition-opacity z-10 whitespace-nowrap">
                                       {count} updates

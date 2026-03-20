@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useMemo } from "react";
 import Link from "next/link";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { 
   collection, 
   query, 
@@ -21,7 +21,7 @@ import {
   Plus, Search, Gamepad2, Wallet, Share2, Briefcase, Mail, Music, 
   MoreVertical, Loader2, X, User, Pencil, Trash2, AlertTriangle, 
   Eye, EyeOff, Terminal, Database, GraduationCap, ShoppingBag, MoreHorizontal, Clock,
-  ArrowUpDown, Filter, Check
+  ArrowUpDown, Filter, Check, Users, ShieldCheck, Activity, Key
 } from "lucide-react";
 
 // --- HELPERS ---
@@ -54,9 +54,6 @@ const CATEGORIES: { label: string; value: AccountCategory | "ALL" }[] = [
 
 function VaultContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const ownerFilter = searchParams.get("owner");
-  
   const { theme } = useTheme();
   const { user } = useAuth();
 
@@ -66,6 +63,7 @@ function VaultContent() {
   // FILTER & SORT STATES
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [activeSpace, setActiveSpace] = useState<string>("ALL"); // Smart Space Filter
   const [sortBy, setSortBy] = useState<"name-asc" | "name-desc" | "date-desc" | "date-asc">("name-asc");
   const [filterStatus, setFilterStatus] = useState<"ALL" | "ACTIVE" | "BREACHED">("ALL");
 
@@ -105,6 +103,54 @@ function VaultContent() {
     return () => unsubscribe();
   }, [user]);
 
+  // --- SMART VAULT SPACES LOGIC ---
+  const vaultSpaces = useMemo(() => {
+    const ownerMap = new Map<string, { accounts: Account[] }>();
+    let totalSecurityPoints = 0;
+    
+    accounts.forEach(acc => {
+      const owner = acc.owner && acc.owner.trim() !== '' ? acc.owner.trim() : "Pribadi";
+      if (!ownerMap.has(owner)) ownerMap.set(owner, { accounts: [] });
+      ownerMap.get(owner)!.accounts.push(acc);
+      
+      // Global Score Calc
+      if (acc.status === 'ACTIVE') totalSecurityPoints += 10;
+      else if (acc.status === 'BANNED' || acc.status === 'SUSPENDED') totalSecurityPoints -= 20;
+      if (acc.authMethod !== 'email') totalSecurityPoints += 5;
+    });
+
+    const spaces = Array.from(ownerMap.entries()).map(([name, data]) => {
+      let securityPoints = 0;
+      data.accounts.forEach(acc => {
+        if (acc.status === 'ACTIVE') securityPoints += 10;
+        else if (acc.status === 'BANNED' || acc.status === 'SUSPENDED') securityPoints -= 20;
+        if (acc.authMethod !== 'email') securityPoints += 5;
+      });
+      const maxPossible = data.accounts.length * 15;
+      const score = maxPossible > 0 ? Math.min(100, Math.max(0, Math.floor((securityPoints / maxPossible) * 100))) : 0;
+      
+      const isOwner = name.toLowerCase() === "pribadi" || name.toLowerCase() === "personal vault";
+      let role = 'TRUSTED';
+      if (isOwner) role = 'OWNER';
+      else if (data.accounts.length < 3) role = 'EMERGENCY';
+
+      return { name, count: data.accounts.length, score, role };
+    });
+
+    // Sort: Owner first, then by count
+    spaces.sort((a, b) => {
+      if (a.role === 'OWNER') return -1;
+      if (b.role === 'OWNER') return 1;
+      return b.count - a.count;
+    });
+
+    // Calc All Data Score
+    const globalMax = accounts.length * 15;
+    const globalScore = globalMax > 0 ? Math.min(100, Math.max(0, Math.floor((totalSecurityPoints / globalMax) * 100))) : 100;
+
+    return { spaces, globalScore };
+  }, [accounts]);
+
   // ADVANCED SMART FILTER & SORTING
   let processedAccounts = accounts.filter((acc) => {
     const matchesCategory = selectedCategory === "ALL" || acc.category === selectedCategory;
@@ -114,13 +160,14 @@ function VaultContent() {
       acc.identifier?.toLowerCase().includes(searchLower) ||
       Object.values(acc.details || {}).some(val => String(val).toLowerCase().includes(searchLower));
 
-    const matchesOwner = ownerFilter ? acc.owner?.toLowerCase() === ownerFilter.toLowerCase() : true;
+    const accountOwner = acc.owner && acc.owner.trim() !== '' ? acc.owner.trim() : "Pribadi";
+    const matchesSpace = activeSpace === "ALL" || accountOwner === activeSpace;
     
     const matchesStatus = filterStatus === "ALL" || 
       (filterStatus === "ACTIVE" && acc.status === "ACTIVE") ||
       (filterStatus === "BREACHED" && acc.status !== "ACTIVE");
       
-    return matchesCategory && matchesSearch && matchesOwner && matchesStatus;
+    return matchesCategory && matchesSearch && matchesSpace && matchesStatus;
   });
 
   processedAccounts.sort((a, b) => {
@@ -131,7 +178,6 @@ function VaultContent() {
     return 0;
   });
 
-  const clearOwnerFilter = () => router.push("/dashboard/vault");
   const handleEdit = (id: string) => router.push(`/dashboard/vault/edit/${id}`);
 
   const handleDeleteConfirm = async () => {
@@ -148,7 +194,6 @@ function VaultContent() {
     }
   };
 
-  // Cek klik di luar menu toolbar untuk menutupnya otomatis
   useEffect(() => {
     const closeToolbar = () => setActiveToolbarMenu(null);
     if (activeToolbarMenu) {
@@ -174,7 +219,10 @@ function VaultContent() {
       catActive: "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-500/50",
       catInactive: "bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800 hover:border-slate-300",
       menuItem: "hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300",
-      menuBg: "bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-xl"
+      menuBg: "bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-xl",
+      spaceActive: "bg-blue-50 dark:bg-blue-900/20 border-blue-500 shadow-md",
+      spaceInactive: "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-800",
+      scrollbar: "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600"
     },
     hacker: {
       wrapper: "font-mono text-green-500",
@@ -191,7 +239,10 @@ function VaultContent() {
       catActive: "bg-green-900/30 text-green-400 border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.2)]",
       catInactive: "bg-black text-green-700 border-green-900/50 hover:border-green-700",
       menuItem: "hover:bg-green-900/20 text-green-500",
-      menuBg: "bg-[#020202] border border-green-900/50 shadow-[0_0_20px_rgba(34,197,94,0.1)]"
+      menuBg: "bg-[#020202] border border-green-900/50 shadow-[0_0_20px_rgba(34,197,94,0.1)]",
+      spaceActive: "bg-black border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)] text-green-400",
+      spaceInactive: "bg-[#050505] border-green-900/50 hover:border-green-700/50 text-green-700",
+      scrollbar: "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-green-900/80 [&::-webkit-scrollbar-thumb]:rounded-sm hover:[&::-webkit-scrollbar-thumb]:bg-green-700"
     },
     casual: {
       wrapper: "font-sans text-stone-800 dark:text-stone-100",
@@ -204,11 +255,14 @@ function VaultContent() {
       card: "bg-white dark:bg-stone-900 border-orange-200 dark:border-stone-800 hover:border-orange-400 hover:shadow-xl shadow-orange-900/5 rounded-3xl cursor-pointer",
       cardHeader: "bg-orange-50/50 dark:bg-stone-950/50 border-b border-orange-100 dark:border-stone-800",
       btnPrimary: "bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white rounded-xl shadow-md",
-      btnOutline: "border-orange-200 dark:border-stone-700 hover:border-orange-400 hover:text-orange-500 bg-white dark:bg-stone-950 text-stone-600 dark:text-stone-400 rounded-xl",
+      btnOutline: "border-orange-200 dark:border-stone-700 hover:border-orange-400 hover:text-orange-500 bg-white/50 dark:bg-stone-950/50 rounded-2xl",
       catActive: "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border-orange-400/50",
       catInactive: "bg-white dark:bg-stone-950 text-stone-500 border-orange-200 dark:border-stone-800 hover:border-orange-300",
       menuItem: "hover:bg-orange-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300",
-      menuBg: "bg-white dark:bg-stone-950 border border-orange-100 dark:border-stone-800 shadow-xl rounded-2xl"
+      menuBg: "bg-white dark:bg-stone-950 border border-orange-100 dark:border-stone-800 shadow-xl rounded-2xl",
+      spaceActive: "bg-orange-50 dark:bg-orange-900/20 border-orange-400 shadow-md",
+      spaceInactive: "bg-white/80 dark:bg-stone-900 border-orange-200 dark:border-stone-800 hover:border-orange-300 dark:hover:border-stone-700",
+      scrollbar: "[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-orange-200 dark:[&::-webkit-scrollbar-thumb]:bg-stone-800 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-orange-300 dark:hover:[&::-webkit-scrollbar-thumb]:bg-stone-700"
     }
   };
 
@@ -278,19 +332,79 @@ function VaultContent() {
         </Link>
       </div>
 
+      {/* SMART VAULT SPACES CAROUSEL */}
+      {!loading && vaultSpaces.spaces.length > 0 && (
+        <div className={cn("flex gap-4 overflow-x-auto pb-4 pt-2 -mx-4 px-4 lg:mx-0 lg:px-0 snap-x", cs.scrollbar)}>
+            
+            {/* ALL DATA SPACE */}
+            <button 
+                onClick={() => setActiveSpace("ALL")}
+                className={cn(
+                    "snap-start shrink-0 w-[240px] p-4 border flex flex-col gap-3 transition-all text-left relative overflow-hidden group", 
+                    theme !== 'casual' && theme !== 'hacker' && 'rounded-xl',
+                    theme === 'hacker' && 'rounded-sm',
+                    theme === 'casual' && 'rounded-[1.5rem]',
+                    activeSpace === "ALL" ? cs.spaceActive : cs.spaceInactive
+                )}
+            >
+                {activeSpace === "ALL" && <div className={cn("absolute top-0 left-0 w-full h-1", cs.accentBg)} />}
+                <div className="flex justify-between items-start w-full">
+                    <div className={cn("p-2 border rounded-lg transition-colors", activeSpace === "ALL" ? (theme === 'hacker' ? 'bg-black border-green-500/50' : 'bg-white dark:bg-slate-900 border-blue-200 dark:border-blue-800') : (theme === 'hacker' ? 'bg-black border-green-900/50' : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800'))}>
+                        <Database size={18} className={activeSpace === "ALL" ? cs.accent : cs.textSub} />
+                    </div>
+                    <span className={cn("text-[9px] font-bold px-2 py-0.5 border rounded uppercase tracking-wider", activeSpace === "ALL" ? (theme === 'hacker' ? 'bg-black text-green-500 border-green-500/50' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800') : (theme === 'hacker' ? 'bg-black text-green-700 border-green-900/50' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'))}>
+                        GLOBAL
+                    </span>
+                </div>
+                <div>
+                    <h3 className={cn("font-bold text-sm truncate", activeSpace === "ALL" ? cs.textMain : cs.textSub)}>Semua Data</h3>
+                    <p className={cn("text-[10px] font-mono mt-0.5", activeSpace === "ALL" ? cs.textMain : cs.textSub)}>{accounts.length} ASSETS</p>
+                </div>
+                <div className={cn("mt-2 h-1 w-full rounded-full overflow-hidden", theme === 'hacker' ? 'bg-green-950' : 'bg-slate-200 dark:bg-slate-800')}>
+                    <div className={cn("h-full transition-all", vaultSpaces.globalScore > 80 ? 'bg-emerald-500' : vaultSpaces.globalScore > 50 ? 'bg-amber-500' : 'bg-red-500')} style={{ width: `${vaultSpaces.globalScore}%` }} />
+                </div>
+            </button>
+
+            {/* OWNER SPACES */}
+            {vaultSpaces.spaces.map((space) => {
+                const isActive = activeSpace === space.name;
+                return (
+                    <button 
+                        key={space.name}
+                        onClick={() => setActiveSpace(space.name)}
+                        className={cn(
+                            "snap-start shrink-0 w-[240px] p-4 border flex flex-col gap-3 transition-all text-left relative overflow-hidden group", 
+                            theme !== 'casual' && theme !== 'hacker' && 'rounded-xl',
+                            theme === 'hacker' && 'rounded-sm',
+                            theme === 'casual' && 'rounded-[1.5rem]',
+                            isActive ? cs.spaceActive : cs.spaceInactive
+                        )}
+                    >
+                        {isActive && <div className={cn("absolute top-0 left-0 w-full h-1", cs.accentBg)} />}
+                        <div className="flex justify-between items-start w-full">
+                            <div className={cn("p-2 border rounded-lg transition-colors", isActive ? (theme === 'hacker' ? 'bg-black border-green-500/50' : 'bg-white dark:bg-slate-900 border-blue-200 dark:border-blue-800') : (theme === 'hacker' ? 'bg-black border-green-900/50' : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800'))}>
+                                {space.role === 'OWNER' ? <ShieldCheck size={18} className={isActive ? cs.accent : cs.textSub} /> : space.role === 'EMERGENCY' ? <AlertTriangle size={18} className={isActive ? cs.accent : cs.textSub} /> : <Users size={18} className={isActive ? cs.accent : cs.textSub} />}
+                            </div>
+                            <span className={cn("text-[9px] font-bold px-2 py-0.5 border rounded uppercase tracking-wider", isActive ? (theme === 'hacker' ? 'bg-black text-green-500 border-green-500/50' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800') : (theme === 'hacker' ? 'bg-black text-green-700 border-green-900/50' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'))}>
+                                {space.role}
+                            </span>
+                        </div>
+                        <div>
+                            <h3 className={cn("font-bold text-sm truncate", isActive ? cs.textMain : cs.textSub)}>{space.name}</h3>
+                            <p className={cn("text-[10px] font-mono mt-0.5", isActive ? cs.textMain : cs.textSub)}>{space.count} ASSETS</p>
+                        </div>
+                        <div className={cn("mt-2 h-1 w-full rounded-full overflow-hidden", theme === 'hacker' ? 'bg-green-950' : 'bg-slate-200 dark:bg-slate-800')}>
+                            <div className={cn("h-full transition-all", space.score > 80 ? 'bg-emerald-500' : space.score > 50 ? 'bg-amber-500' : 'bg-red-500')} style={{ width: `${space.score}%` }} />
+                        </div>
+                    </button>
+                )
+            })}
+        </div>
+      )}
+
       {/* ADVANCED DATA TOOLBAR (STICKY GLASSMORPHISM) */}
       <div className={cn("p-4 border backdrop-blur-xl space-y-4 sticky top-4 z-30 transition-all", cs.searchPanel, theme === 'formal' ? 'rounded-2xl' : theme === 'casual' ? 'rounded-3xl' : 'rounded-sm')}>
         
-        {ownerFilter && (
-            <div className={cn("border rounded-lg p-2.5 px-4 flex items-center justify-between text-xs mb-2", theme === 'hacker' ? 'bg-green-950/20 border-green-500/30 text-green-400' : 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/50 text-blue-600 dark:text-blue-400')}>
-              <div className="flex items-center gap-2">
-                  <User size={14} />
-                  <span>{theme === 'hacker' ? 'FILTER_ACTIVE: OWNER =' : 'Menampilkan data milik:'} <span className="font-bold">{ownerFilter}</span></span>
-              </div>
-              <button onClick={clearOwnerFilter} className="hover:opacity-70 transition-opacity"><X size={16} /></button>
-            </div>
-        )}
-
         <div className="flex flex-col lg:flex-row gap-3">
             {/* Filter Lokal / Saringan Data */}
             <div className="relative flex-1 group">
@@ -299,7 +413,7 @@ function VaultContent() {
                 </div>
                 <input 
                     type="text" 
-                    placeholder={theme === 'hacker' ? "filter_table (name, identifier...)" : "Saring tabel (layanan atau username)..."} 
+                    placeholder={theme === 'hacker' ? `Search in ${activeSpace}...` : `Saring data di ${activeSpace === 'ALL' ? 'Semua Data' : activeSpace}...`} 
                     className={cn("w-full border py-2.5 pl-10 pr-4 outline-none transition-all text-sm", cs.input, theme !== 'hacker' ? 'rounded-xl' : 'rounded-sm', theme === 'hacker' && 'font-mono')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -383,7 +497,7 @@ function VaultContent() {
         </div>
 
         {/* Filter Kategori Horizontal Scroll - Expanded */}
-        <div className="flex gap-2 overflow-x-auto pb-2 lg:pb-0 custom-scrollbar -mx-4 px-4 lg:mx-0 lg:px-0 scroll-smooth">
+        <div className={cn("flex gap-2 overflow-x-auto pb-2 lg:pb-0 -mx-4 px-4 lg:mx-0 lg:px-0 scroll-smooth", cs.scrollbar)}>
             {CATEGORIES.map((cat) => (
                 <button
                     key={cat.value}
@@ -409,13 +523,15 @@ function VaultContent() {
       ) : processedAccounts.length === 0 ? (
         <div className={cn("text-center py-24 border border-dashed rounded-2xl flex flex-col items-center justify-center", theme === 'hacker' ? 'border-green-900/50 bg-[#050505]' : 'border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm')}>
           <div className={cn("inline-flex p-5 rounded-full mb-5", theme === 'hacker' ? 'bg-green-950/30 text-green-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>
-            <Database size={40} strokeWidth={1.5} />
+            {activeSpace !== 'ALL' ? <Key size={40} strokeWidth={1.5} /> : <Database size={40} strokeWidth={1.5} />}
           </div>
-          <h3 className={cn("font-bold text-lg tracking-wide", cs.textMain)}>{theme === 'hacker' ? 'NO_DATA_FOUND' : 'Data Tidak Ditemukan'}</h3>
+          <h3 className={cn("font-bold text-lg tracking-wide", cs.textMain)}>
+            {theme === 'hacker' ? 'NO_DATA_FOUND' : `Tidak ada data${activeSpace !== 'ALL' ? ` di ${activeSpace}` : ''}`}
+          </h3>
           <p className={cn("text-sm mt-2 max-w-sm px-4", cs.textSub)}>
             {searchQuery || filterStatus !== 'ALL' || selectedCategory !== 'ALL'
               ? `Tidak ada data yang cocok dengan kriteria filter saat ini.` 
-              : "Brankas Anda masih kosong. Silakan tambahkan kredensial baru untuk memulainya."}
+              : `Brankas ${activeSpace !== 'ALL' ? activeSpace : 'Anda'} masih kosong. Tambahkan kredensial untuk memulainya.`}
           </p>
           {(!searchQuery && filterStatus === 'ALL' && selectedCategory === 'ALL') && (
             <Link href="/dashboard/vault/create" className={cn("mt-6 px-6 py-2.5 text-sm font-bold transition-all", cs.btnPrimary, theme !== 'casual' && theme !== 'hacker' && 'rounded-lg')}>

@@ -7,16 +7,18 @@ import { collection, getDocs, query, where, writeBatch } from "firebase/firestor
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
 import { useTheme } from "@/components/theme-provider";
+import type { Theme } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
 import { 
   Settings, User, Shield, HardDrive, Bell, LogOut, Loader2, Download, 
   Upload, Trash2, AlertTriangle, CheckCircle2, Cpu, RefreshCw, Lock, X, Info,
-  Activity, Link as LinkIcon, Edit2
+  Activity, Link as LinkIcon, Edit2, Palette
 } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { theme } = useTheme();
+  // Mengambil theme dan setTheme dari context
+  const { theme, setTheme } = useTheme() as { theme: Theme, setTheme: (t: Theme) => void };
   const { user, isGuest } = useAuth();
   
   const [loading, setLoading] = useState(true);
@@ -267,7 +269,7 @@ export default function SettingsPage() {
 
       {/* MODAL PURGE VAULT */}
       {showPurgeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200 font-mono">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200 font-mono">
             <div className="bg-[#050505] rounded-2xl border border-red-900/50 shadow-[0_0_50px_rgba(220,38,38,0.2)] max-w-md w-full p-6 space-y-5 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1 bg-red-600 animate-pulse" />
                 <div className="flex items-center gap-3 text-red-500">
@@ -312,6 +314,21 @@ export default function SettingsPage() {
           </p>
         </div>
       </div>
+
+      {/* GUEST WARNING BANNER */}
+      {isGuest && (
+        <div className={cn("p-5 flex flex-col sm:flex-row sm:items-center gap-4 border animate-in slide-in-from-top-4 duration-500", theme === 'hacker' ? 'bg-amber-950/10 border-amber-900/50 text-amber-500 rounded-sm' : 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/30 text-amber-700 dark:text-amber-500 rounded-xl')}>
+            <div className={cn("p-3 rounded-full shrink-0 self-start sm:self-auto", theme === 'hacker' ? 'bg-amber-900/20' : 'bg-amber-100 dark:bg-amber-900/40')}>
+                <AlertTriangle size={24} />
+            </div>
+            <div className="flex-1">
+                <h3 className="font-bold text-sm tracking-wide mb-1 uppercase">Peringatan Sesi Tamu Aktif</h3>
+                <p className="text-xs opacity-80 leading-relaxed max-w-3xl">
+                    Data Sesi Tamu tidak akan hilang meskipun browser ditutup. Namun, jika Anda menggunakan mode Incognito, pindah perangkat, atau <strong className="font-bold">membersihkan Cache Browser</strong>, data Anda akan lenyap. Tautkan Akun Google di bawah untuk mencadangkannya secara permanen ke Cloud.
+                </p>
+            </div>
+        </div>
+      )}
 
       {/* ========================================================= */}
       {/* ROW 1: USER PROFILE (Kiri) & IDENTITY PROTOCOL (Kanan)    */}
@@ -399,10 +416,10 @@ export default function SettingsPage() {
                 </div>
             )}
 
-            {/* Google Connection Item (Dipaksa ke Bawah dengan mt-auto) */}
+            {/* Google Connection Item */}
             <div className={cn("mt-auto pt-5 border-t", theme === 'hacker' ? 'border-green-900/30' : 'border-slate-200 dark:border-slate-800')}>
                 <label className={cn("text-xs font-bold uppercase tracking-wider ml-1 mb-2 block", cs.textSub)}>Connected Accounts</label>
-                <div className={cn("flex flex-col sm:flex-row sm:items-center justify-between gap-4 border p-4 lg:p-5 transition-colors", cs.input, theme !== 'casual' && 'rounded-xl')}>
+                <div className={cn("flex flex-col sm:flex-row sm:items-center justify-between gap-4 border p-4 lg:p-5 transition-colors", cs.input, theme !== 'casual' && 'rounded-xl', isGoogleLinked ? 'border-emerald-500/30' : '')}>
                     <div className="flex items-center gap-3">
                         <div className={cn("p-2 rounded-md", theme === 'hacker' ? 'bg-black' : 'bg-slate-100 dark:bg-slate-800')}>
                             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -424,27 +441,26 @@ export default function SettingsPage() {
                     ) : (
                         <button 
                             onClick={handleLinkGoogle} 
-                            disabled={isGuest || isLinkingGoogle}
-                            className={cn("px-4 py-2 text-[10px] font-bold transition-all flex items-center justify-center gap-2 border", cs.btnGoogle, isGuest && 'opacity-50 cursor-not-allowed')}
+                            disabled={isLinkingGoogle}
+                            className={cn("px-4 py-2 text-[10px] font-bold transition-all flex items-center justify-center gap-2 border", cs.btnGoogle, isLinkingGoogle && 'opacity-50 cursor-not-allowed', isGuest && 'ring-2 ring-amber-500 ring-offset-2 ring-offset-current')}
                         >
                             {isLinkingGoogle ? <Loader2 size={14} className="animate-spin" /> : <LinkIcon size={14} />}
-                            {isLinkingGoogle ? "MENAUTKAN..." : "TAUTKAN"}
+                            {isLinkingGoogle ? "MENAUTKAN..." : "TAUTKAN SEKARANG"}
                         </button>
                     )}
                 </div>
-                {isGuest && <p className="text-[10px] text-amber-500 mt-2 ml-1 flex items-center gap-1"><AlertTriangle size={12} /> Fitur tautan akun tidak tersedia untuk Sesi Tamu.</p>}
             </div>
         </section>
       </div>
 
       {/* ========================================================= */}
-      {/* ROW 2: DATABASE METRICS (Kiri) & DATA CONTROL (Kanan)     */}
+      {/* ROW 2: DATABASE METRICS & DATA CONTROL (Kiri) & THEME (Kanan) */}
       {/* ========================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         
-        {/* Metrics Card (KIRI) */}
-        <div className={cn("p-6 flex flex-col justify-between h-full lg:col-span-4", cs.panel, theme !== 'casual' && 'rounded-xl')}>
-            <div className="space-y-4">
+        {/* Metrics & Data Control (KIRI) */}
+        <div className={cn("p-6 flex flex-col justify-between h-full lg:col-span-6", cs.panel, theme !== 'casual' && 'rounded-xl')}>
+            <div className="space-y-4 mb-6">
                 <h4 className={cn("text-sm font-bold uppercase flex items-center gap-2 tracking-wider border-b pb-3", cs.textSub, theme === 'hacker' ? 'border-green-900/30' : 'border-slate-200 dark:border-slate-800')}>
                     <HardDrive size={16} /> Database Metrics
                 </h4>
@@ -464,72 +480,79 @@ export default function SettingsPage() {
                 </div>
             </div>
             
-            <div className="pt-5 mt-5 border-t border-slate-200 dark:border-slate-800 space-y-3 font-mono text-xs">
-                <div className={cn("flex items-center justify-between", cs.textSub)}>
-                    <span className="flex items-center gap-1.5"><Cpu size={14} /> Version</span>
-                    <span className={cs.textMain}>v5.0.0-beta</span>
-                </div>
-                <div className={cn("flex items-center justify-between", cs.textSub)}>
-                    <span className="flex items-center gap-1.5"><RefreshCw size={14} /> Sync</span>
-                    <span className={cs.textMain}>Just now</span>
-                </div>
+            <div className="pt-5 border-t border-inherit flex gap-3">
+                <button 
+                    onClick={handleExportData}
+                    disabled={exporting}
+                    className={cn("flex items-center justify-center gap-2 transition-all font-mono text-[10px] font-bold w-full h-full flex-1 py-3", cs.btnOutline)}
+                >
+                    {exporting ? <Loader2 size={14} className={cn("animate-spin", cs.accent)} /> : <Download size={14} className={cs.textSub} />}
+                    EXPORT_JSON
+                </button>
+                <button className={cn("flex items-center justify-center gap-2 transition-all font-mono text-[10px] font-bold w-full h-full flex-1 py-3 opacity-50 cursor-not-allowed", cs.btnOutline)}>
+                    <Upload size={14} className={cs.textSub} />
+                    IMPORT_DATA
+                </button>
             </div>
         </div>
 
-        {/* Security & Data Actions (KANAN) */}
-        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
-            
-            {/* Preferences / Toggles */}
-            <section className={cn("p-6 flex flex-col justify-center gap-4 h-full", cs.panel, theme !== 'casual' && 'rounded-xl')}>
-                <h3 className={cn("text-sm font-bold uppercase tracking-wider mb-2", cs.textSub)}>Preferences</h3>
+        {/* Appearance & Settings (KANAN) */}
+        <section className={cn("p-6 flex flex-col justify-between gap-4 h-full lg:col-span-6", cs.panel, theme !== 'casual' && 'rounded-xl')}>
+            <div className="space-y-4">
+                <h3 className={cn("text-sm font-bold uppercase tracking-wider border-b pb-3 flex items-center gap-2", cs.textSub, theme === 'hacker' ? 'border-green-900/30' : 'border-slate-200 dark:border-slate-800')}>
+                    <Palette size={16} /> Appearance & Theme
+                </h3>
                 
+                <div className="grid grid-cols-3 gap-3 w-full">
+                    {([
+                        { id: 'formal', color: 'bg-slate-800 dark:bg-slate-200' },
+                        { id: 'hacker', color: 'bg-green-500' },
+                        { id: 'casual', color: 'bg-gradient-to-tr from-orange-400 to-pink-500' }
+                    ] as const).map((t) => (
+                        <button 
+                            key={t.id}
+                            onClick={() => setTheme(t.id)}
+                            className={cn(
+                                "flex flex-col items-center gap-2 p-3 border transition-all rounded-lg active:scale-95",
+                                theme === t.id 
+                                    ? (theme === 'hacker' ? 'border-green-500 bg-green-900/20 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.2)]' : theme === 'casual' ? 'border-orange-500 bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 shadow-sm' : 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 shadow-sm')
+                                    : (theme === 'hacker' ? 'border-green-900/50 bg-black text-green-700 hover:border-green-500/50' : 'border-slate-200 dark:border-slate-800 text-slate-500 hover:border-slate-400 dark:hover:border-slate-600 bg-slate-50 dark:bg-slate-900/50')
+                            )}
+                        >
+                            <div className={cn("w-5 h-5 rounded-full shadow-sm", t.color)} />
+                            <span className="text-[10px] font-bold uppercase tracking-wider">{t.id}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div className="pt-5 border-t border-inherit space-y-4">
                 <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-3">
-                        <div className={cn("p-2 rounded-md", theme === 'hacker' ? 'bg-black' : 'bg-slate-100 dark:bg-slate-800')}><Bell size={18} className={cs.textSub} /></div>
+                        <div className={cn("p-2 rounded-md", theme === 'hacker' ? 'bg-black' : 'bg-slate-100 dark:bg-slate-800')}><Bell size={16} className={cs.textSub} /></div>
                         <div>
                             <p className={cn("text-sm font-bold", cs.textMain)}>Security Alerts</p>
-                            <p className={cn("text-[10px]", cs.textSub)}>Email notifications</p>
                         </div>
                     </div>
                     <button 
                         onClick={() => setEmailNotifications(!emailNotifications)}
-                        className={cn("w-10 h-5 rounded-full relative transition-colors border", emailNotifications ? 'bg-emerald-500/20 border-emerald-500/50' : 'bg-slate-300 dark:bg-slate-700 border-transparent')}
+                        className={cn("w-10 h-5 rounded-full relative transition-colors border", emailNotifications ? (theme === 'hacker' ? 'bg-green-500/20 border-green-500/50' : 'bg-emerald-500/20 border-emerald-500/50') : 'bg-slate-300 dark:bg-slate-700 border-transparent')}
                     >
-                        <div className={cn("absolute top-0.5 w-3.5 h-3.5 rounded-full transition-all", emailNotifications ? 'right-0.5 bg-emerald-500' : 'left-0.5 bg-slate-500')} />
+                        <div className={cn("absolute top-0.5 w-3.5 h-3.5 rounded-full transition-all", emailNotifications ? (theme === 'hacker' ? 'right-0.5 bg-green-500' : 'right-0.5 bg-emerald-500') : 'left-0.5 bg-slate-500')} />
                     </button>
                 </div>
 
-                <div className="flex items-center justify-between w-full opacity-60 mt-2">
+                <div className="flex items-center justify-between w-full opacity-60">
                     <div className="flex items-center gap-3">
-                        <div className={cn("p-2 rounded-md", theme === 'hacker' ? 'bg-black' : 'bg-slate-100 dark:bg-slate-800')}><Lock size={18} className={cs.textSub} /></div>
+                        <div className={cn("p-2 rounded-md", theme === 'hacker' ? 'bg-black' : 'bg-slate-100 dark:bg-slate-800')}><Lock size={16} className={cs.textSub} /></div>
                         <div>
                             <p className={cn("text-sm font-bold", cs.textMain)}>2FA Auth</p>
-                            <p className={cn("text-[10px]", cs.textSub)}>Hardware required</p>
                         </div>
                     </div>
                     <span className={cn("text-[10px] font-bold font-mono", cs.textSub)}>DISABLED</span>
                 </div>
-            </section>
-
-            {/* Import/Export */}
-            <section className={cn("p-6 flex flex-col h-full", cs.panel, theme !== 'casual' && 'rounded-xl')}>
-                <h3 className={cn("text-sm font-bold uppercase tracking-wider mb-4", cs.textSub)}>Data Control</h3>
-                <div className="flex-1 flex flex-col gap-3">
-                    <button 
-                        onClick={handleExportData}
-                        disabled={exporting}
-                        className={cn("flex items-center justify-center gap-3 transition-all font-mono text-xs font-bold w-full h-full flex-1 min-h-[50px]", cs.btnOutline)}
-                    >
-                        {exporting ? <Loader2 size={16} className={cn("animate-spin", cs.accent)} /> : <Download size={16} className={cs.textSub} />}
-                        EXPORT_JSON
-                    </button>
-                    <button className={cn("flex items-center justify-center gap-3 transition-all font-mono text-xs font-bold w-full h-full flex-1 min-h-[50px] opacity-50 cursor-not-allowed", cs.btnOutline)}>
-                        <Upload size={16} className={cs.textSub} />
-                        IMPORT_DATA
-                    </button>
-                </div>
-            </section>
-        </div>
+            </div>
+        </section>
       </div>
 
       {/* DANGER ZONE - FULL WIDTH BOTTOM */}
