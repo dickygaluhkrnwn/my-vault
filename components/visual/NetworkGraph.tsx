@@ -124,7 +124,7 @@ function OrganicNode({ position, color, scale = 1, label, onClick, theme }: { po
         {/* Sitoplasma */}
         <Sparkles count={15} scale={finalScale * 0.8} size={3} speed={0.2} opacity={0.6} color={theme === 'formal' ? "#94a3b8" : "#ffffff"} noise={1} />
 
-        {/* Membran Luar - Teta menggunakan MeshDistortMaterial yang ringan dan organik */}
+        {/* Membran Luar - Tetap menggunakan MeshDistortMaterial yang ringan dan organik */}
         <mesh 
             ref={meshRef} 
             scale={hovered ? finalScale * 1.3 : finalScale}
@@ -469,7 +469,7 @@ export default function NetworkGraph({ group, onNodeClick }: NetworkGraphProps) 
   };
 
   return (
-    // DIKEMBALIKAN KE H-[600PX] AGAR TIDAK MELAR!
+    // DIKEMBALIKAN KE h-[600px] AGAR TIDAK MELAR!
     <div className={cn("w-full h-[600px] rounded-xl overflow-hidden relative border transition-colors duration-500", containerStyles[theme])}>
       <Canvas camera={{ position: [0, 0, cameraZ], fov: fov }} dpr={[1, 2]}>
         <color attach="background" args={[bgColors[theme]]} />

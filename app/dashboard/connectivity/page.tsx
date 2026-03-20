@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { collection, query, onSnapshot, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Account } from "@/lib/types/schema";
+import { Account, AccountCategory } from "@/lib/types/schema";
 import { useRouter } from "next/navigation"; 
 import { 
   Network, 
@@ -15,7 +15,17 @@ import {
   List,
   Box,
   Eye,
-  Terminal
+  Terminal,
+  Gamepad2, 
+  Wallet, 
+  Share2, 
+  Briefcase, 
+  Mail, 
+  Music, 
+  GraduationCap, 
+  ShoppingBag, 
+  MoreHorizontal, 
+  Link as LinkIcon
 } from "lucide-react";
 import NetworkGraph from "@/components/visual/NetworkGraph";
 import { useTheme } from "@/components/theme-provider";
@@ -34,6 +44,20 @@ export interface ConnectionGroup {
   rootAccount?: Account; 
   children: ConnectedNode[];
 }
+
+const getCategoryIcon = (category: AccountCategory | string) => {
+    switch (category) {
+      case "GAME": return <Gamepad2 size={16} className="text-purple-500 dark:text-purple-400" />;
+      case "FINANCE": return <Wallet size={16} className="text-emerald-500 dark:text-emerald-400" />;
+      case "SOCIAL": return <Share2 size={16} className="text-blue-500 dark:text-blue-400" />;
+      case "WORK": return <Briefcase size={16} className="text-amber-500 dark:text-amber-400" />;
+      case "UTILITY": return <Mail size={16} className="text-orange-500 dark:text-orange-400" />;
+      case "ENTERTAINMENT": return <Music size={16} className="text-pink-500 dark:text-pink-400" />;
+      case "EDUCATION": return <GraduationCap size={16} className="text-yellow-500 dark:text-yellow-400" />;
+      case "ECOMMERCE": return <ShoppingBag size={16} className="text-rose-500 dark:text-rose-400" />;
+      default: return <MoreHorizontal size={16} className="text-slate-400" />;
+    }
+};
 
 export default function ConnectivityPage() {
   const router = useRouter();
@@ -139,7 +163,6 @@ export default function ConnectivityPage() {
         return;
     }
 
-    // KEMBALI KE QUERY AMAN FIREBASE (Strict User Isolation)
     const q = query(
         collection(db, "accounts"),
         where("userId", "==", user.uid)
@@ -270,7 +293,9 @@ export default function ConnectivityPage() {
       input: "bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 focus:border-blue-500 text-slate-900 dark:text-slate-100",
       listItem: "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800",
       listItemSelected: "bg-blue-50 dark:bg-blue-900/20 border-blue-500/50 text-blue-700 dark:text-blue-300 shadow-sm",
-      badge: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800"
+      badge: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+      textMain: "text-slate-900 dark:text-slate-100",
+      scrollbar: "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600"
     },
     hacker: {
       wrapper: "bg-[#050505] border-green-900/50 text-green-500 font-mono shadow-[0_0_30px_rgba(34,197,94,0.05)]",
@@ -281,7 +306,9 @@ export default function ConnectivityPage() {
       input: "bg-black border-green-900 focus:border-green-500 text-green-400",
       listItem: "bg-black border-green-900 hover:bg-green-900/20",
       listItemSelected: "bg-green-900/20 border-green-500 text-green-300 shadow-[0_0_15px_rgba(34,197,94,0.1)]",
-      badge: "bg-black text-green-400 border-green-900"
+      badge: "bg-black text-green-400 border-green-900",
+      textMain: "text-green-400",
+      scrollbar: "[&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-green-900/80 [&::-webkit-scrollbar-thumb]:rounded-sm hover:[&::-webkit-scrollbar-thumb]:bg-green-700"
     },
     casual: {
       wrapper: "bg-white/80 dark:bg-stone-900/80 backdrop-blur-xl border-orange-200 dark:border-stone-800 text-stone-800 dark:text-stone-100 rounded-[2rem]",
@@ -292,7 +319,9 @@ export default function ConnectivityPage() {
       input: "bg-white dark:bg-stone-900 border-orange-200 dark:border-stone-700 focus:border-orange-500 text-stone-800 dark:text-stone-100 rounded-xl",
       listItem: "bg-white dark:bg-stone-900 border-orange-100 dark:border-stone-800 hover:bg-orange-50 dark:hover:bg-stone-800 rounded-2xl",
       listItemSelected: "bg-orange-100 dark:bg-orange-900/20 border-orange-400 text-orange-700 dark:text-orange-300 shadow-sm rounded-2xl",
-      badge: "bg-orange-100 dark:bg-stone-800 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-stone-700"
+      badge: "bg-orange-100 dark:bg-stone-800 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-stone-700",
+      textMain: "text-stone-800 dark:text-stone-100",
+      scrollbar: "[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-orange-200 dark:[&::-webkit-scrollbar-thumb]:bg-stone-800 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-orange-300 dark:hover:[&::-webkit-scrollbar-thumb]:bg-stone-700"
     }
   };
 
@@ -322,9 +351,11 @@ export default function ConnectivityPage() {
   }
 
   return (
-    <div className={cn("min-h-[85vh] p-4 lg:p-6 border shadow-2xl overflow-hidden flex flex-col transition-colors duration-500", cs.wrapper, theme !== 'casual' && 'rounded-xl')}>
+    // DI SINI TINGGI HALAMAN DIBUAT JAUH LEBIH PANJANG (min-h-[1150px])
+    <div className={cn("h-[calc(100vh-80px)] min-h-[1150px] p-4 lg:p-6 border shadow-2xl overflow-hidden flex flex-col transition-colors duration-500", cs.wrapper, theme !== 'casual' && 'rounded-xl')}>
       
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 lg:mb-8 border-b border-inherit pb-4">
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 lg:mb-6 border-b border-inherit pb-4 shrink-0">
         <div className="flex items-center gap-4">
             <div className={cn("p-3 border rounded-lg", cs.headerIcon, theme === 'hacker' && 'animate-pulse')}>
                 <Network size={24} />
@@ -342,6 +373,7 @@ export default function ConnectivityPage() {
             </div>
         </div>
         
+        {/* Tombol Toggle View (Mobile) */}
         <div className={cn("flex items-center gap-2 lg:hidden p-1 border", cs.panel, theme !== 'casual' && 'rounded-lg')}>
             <button 
                 onClick={() => setMobileView('list')}
@@ -357,6 +389,7 @@ export default function ConnectivityPage() {
             </button>
         </div>
 
+        {/* Indikator Total Data (Desktop) */}
         <div className="hidden lg:flex gap-4 text-xs">
             <div className={cn("flex items-center gap-2 px-3 py-1.5 border font-bold", cs.panel, theme !== 'casual' && 'rounded-md')}>
                 <Wifi size={14} className={cs.accentText} />
@@ -365,15 +398,17 @@ export default function ConnectivityPage() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 flex-1 relative h-[600px] lg:h-auto">
+      {/* FLEX CONTAINER DENGAN min-h-0 AGAR CHILD BISA OVERFLOW-Y */}
+      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 relative">
         
+        {/* KOLOM KIRI: Daftar Klaster (Bisa di-scroll secara internal) */}
         <div className={cn(
-          "w-full lg:w-80 flex flex-col gap-4 absolute lg:relative inset-0 z-10 transition-all duration-300", 
+          "w-full lg:w-80 flex flex-col gap-4 h-full relative z-10 transition-all duration-300", 
           theme === 'hacker' ? 'bg-[#050505] lg:bg-transparent' : 'bg-white dark:bg-slate-950 lg:bg-transparent',
-          mobileView === 'graph' ? 'opacity-0 pointer-events-none lg:opacity-100 lg:pointer-events-auto' : 'opacity-100'
+          mobileView === 'graph' ? 'opacity-0 pointer-events-none lg:opacity-100 lg:pointer-events-auto hidden lg:flex' : 'flex'
         )}>
-            <div className={cn("p-4 border h-full flex flex-col", cs.panel, theme !== 'casual' && 'rounded-lg')}>
-                <div className="flex flex-col gap-3 mb-3">
+            <div className={cn("p-4 border h-full flex flex-col overflow-hidden", cs.panel, theme !== 'casual' && 'rounded-lg')}>
+                <div className="flex flex-col gap-3 mb-3 shrink-0">
                     <div className={cn("flex items-center gap-2 text-xs font-bold uppercase tracking-wider", cs.subText)}>
                         <Search size={14} />
                         {theme === 'hacker' ? 'Identity Clusters' : 'Daftar Klaster'}
@@ -397,7 +432,7 @@ export default function ConnectivityPage() {
                     </div>
                 </div>
 
-                <div className="space-y-1 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                <div className={cn("space-y-1 overflow-y-auto pr-2 flex-1 min-h-0", cs.scrollbar)}>
                     {filteredGroups.length === 0 ? (
                         <div className={cn("text-xs text-center py-8 border border-dashed flex flex-col items-center gap-2", cs.subText, cs.listItem, theme !== 'casual' && 'rounded')}>
                             <Shield size={24} className="opacity-20" />
@@ -441,17 +476,100 @@ export default function ConnectivityPage() {
             </div>
         </div>
 
+        {/* KOLOM KANAN: Graph + Connection Details */}
         <div className={cn(
-          "flex-1 flex flex-col gap-6 absolute lg:relative inset-0 transition-all duration-300", 
+          "flex-1 flex flex-col gap-4 lg:gap-6 h-full overflow-hidden absolute lg:relative inset-0 transition-all duration-300", 
           theme === 'hacker' ? 'bg-[#050505] lg:bg-transparent' : 'bg-white dark:bg-slate-950 lg:bg-transparent',
-          mobileView === 'list' ? 'opacity-0 pointer-events-none lg:opacity-100 lg:pointer-events-auto' : 'opacity-100'
+          mobileView === 'list' ? 'opacity-0 pointer-events-none lg:opacity-100 lg:pointer-events-auto hidden lg:flex' : 'flex'
         )}>
-            <NetworkGraph group={activeGroup} onNodeClick={handleNodeClick} />
+            
+            {/* Bagian Atas: Grafik 3D (Tinggi Ditetapkan Fixed) */}
+            <div className="w-full shrink-0 h-[400px] lg:h-[460px] relative">
+                <NetworkGraph group={activeGroup} onNodeClick={handleNodeClick} />
+            </div>
 
-            <div className={cn("flex justify-between items-center text-[10px] font-bold px-2 absolute bottom-2 w-full lg:relative lg:bottom-auto pointer-events-none", cs.subText)}>
-                <p className="hidden lg:block">MOUSE: Drag to rotate • Scroll to zoom • Click nodes</p>
-                <p className="lg:hidden">TOUCH: Drag to rotate • Pinch to zoom</p>
-                <p>RENDERER: WebGL 2.0 (Three.js)</p>
+            {/* Bagian Bawah: Box Detail Koneksi (Akan merentang memanjang dan scrollable secara internal) */}
+            <div className={cn("flex-1 flex flex-col border overflow-hidden transition-colors", cs.panel, theme !== 'casual' && 'rounded-xl')}>
+                
+                {/* INFO AKUN UTAMA (ROOT NODE) */}
+                {activeGroup && (
+                    <div className={cn("p-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0", theme === 'hacker' ? 'bg-black/30 border-green-900/50' : 'bg-slate-50/50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800')}>
+                        <div className="flex items-center gap-3">
+                            <div className={cn("p-2.5 rounded-lg border shrink-0", cs.headerIcon)}>
+                                {activeGroup.rootAccount ? getCategoryIcon(activeGroup.rootAccount.category) : <Network size={20} className={cs.accentText} />}
+                            </div>
+                            <div>
+                                <p className={cn("text-[10px] font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1", cs.accentText)}>
+                                    <GitBranch size={12} /> {theme === 'hacker' ? 'PARENT_NODE' : 'Akun Utama (Root)'}
+                                </p>
+                                <h4 className={cn("text-sm font-bold", cs.textMain)}>
+                                    {activeGroup.rootAccount ? activeGroup.rootAccount.serviceName : activeGroup.parentId}
+                                </h4>
+                                {activeGroup.rootAccount && (
+                                    <p className={cn("text-[10px] font-mono mt-0.5", cs.subText)}>{activeGroup.rootAccount.identifier}</p>
+                                )}
+                            </div>
+                        </div>
+                        <div className={cn("flex items-center gap-3 text-right shrink-0", cs.subText)}>
+                            <div className={cn("px-3 py-1.5 rounded border flex flex-col items-center justify-center", theme === 'hacker' ? 'bg-black/50 border-green-900/30' : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800')}>
+                                <span className="text-[9px] font-bold uppercase tracking-wider">Nodes</span>
+                                <span className={cn("text-xs font-bold font-mono", cs.textMain)}>{activeGroup.children.length}</span>
+                            </div>
+                            <div className={cn("px-3 py-1.5 rounded border flex flex-col items-center justify-center", theme === 'hacker' ? 'bg-black/50 border-green-900/30' : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800')}>
+                                <span className="text-[9px] font-bold uppercase tracking-wider">Status</span>
+                                <span className={cn("text-xs font-bold font-mono", activeGroup.rootAccount?.status === 'ACTIVE' ? 'text-emerald-500' : 'text-red-500')}>
+                                    {activeGroup.rootAccount?.status === 'ACTIVE' ? 'SECURE' : (activeGroup.rootAccount?.status || 'UNKNOWN')}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Sub-Header Detail Sub-Akun */}
+                <div className={cn("px-4 py-3 border-b flex items-center justify-between shrink-0", theme === 'hacker' ? 'border-green-900/50 bg-[#020202]' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950')}>
+                    <h3 className={cn("text-[10px] font-bold uppercase tracking-wider flex items-center gap-2", cs.subText)}>
+                        <LinkIcon size={12} className={cs.accentText} />
+                        {theme === 'hacker' ? 'CONNECTED_SUBSYSTEMS' : 'Sub-Akun Terhubung'}
+                    </h3>
+                </div>
+                
+                {/* Area list item yang bisa scroll internal (flex-1 min-h-0) */}
+                <div className={cn("flex-1 overflow-y-auto p-3 space-y-2 min-h-0", cs.scrollbar)}>
+                    {(!activeGroup || activeGroup.children.length === 0) ? (
+                        <div className="h-full flex flex-col items-center justify-center opacity-50 text-xs font-mono gap-2 min-h-[150px]">
+                            <Shield size={24} /> NO_LINKED_DATA
+                        </div>
+                    ) : (
+                        activeGroup.children.map(child => (
+                            <div 
+                              key={child.id} 
+                              onClick={() => handleNodeClick(child)} 
+                              className={cn("flex items-center justify-between p-3 border cursor-pointer transition-all group", cs.listItem, theme !== 'casual' && 'rounded-lg')}
+                            >
+                                <div className="flex items-center gap-3 overflow-hidden">
+                                    <div className={cn("p-2 rounded-lg border transition-colors shrink-0", cs.headerIcon)}>
+                                        {getCategoryIcon(child.category)}
+                                    </div>
+                                    <div className="overflow-hidden">
+                                        <p className={cn("font-bold text-sm truncate transition-colors", cs.textMain, "group-hover:text-blue-500", theme==='hacker'&&'group-hover:text-green-500', theme==='casual'&&'group-hover:text-orange-500')}>{child.serviceName}</p>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className={cn("text-[10px] font-mono truncate", cs.subText)}>{child.identifier}</span>
+                                            <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase font-mono", theme === 'hacker' ? 'bg-black text-green-600 border-green-900/50' : 'bg-slate-100 dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800')}>{child.category}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-end gap-1.5 shrink-0 ml-2">
+                                    <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider", child.isSmartLinked ? (theme==='hacker'?'text-purple-400 border-purple-900/50 bg-purple-950/30':'text-purple-600 border-purple-200 bg-purple-50') : cs.badge)}>
+                                        {child.connectionPath}
+                                    </span>
+                                    <span className={cn("text-[9px] flex items-center gap-1 font-bold", child.status === 'ACTIVE' ? (theme==='hacker'?'text-green-500':'text-emerald-500') : 'text-red-500')}>
+                                        {child.status === 'ACTIVE' ? 'SECURE' : 'BREACHED'}
+                                    </span>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
             </div>
         </div>
 

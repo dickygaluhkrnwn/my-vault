@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   Clock,
   Zap,
-  Network
+  Network,
+  ShieldCheck
 } from "lucide-react";
 import { Account } from "@/lib/types/schema";
 import { useTheme } from "@/components/theme-provider";
@@ -26,7 +27,9 @@ export default function DashboardPage() {
   const { user, isGuest } = useAuth();
   
   const [loading, setLoading] = useState(true);
-  
+  const [systemTime, setSystemTime] = useState(new Date());
+
+  // REAL DATA STATES
   const [stats, setStats] = useState({
     total: 0,
     finance: 0, 
@@ -36,15 +39,22 @@ export default function DashboardPage() {
     linked: 0, 
   });
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
+  const [securityScore, setSecurityScore] = useState(100);
+  const [activityTimeline, setActivityTimeline] = useState<number[]>(new Array(30).fill(0));
   
-  const [cpuLoad, setCpuLoad] = useState(0);
-  const [systemTime, setSystemTime] = useState(new Date());
+  const [storageData, setStorageData] = useState({
+      usedBytes: 0,
+      usedKB: "0.0",
+      freeMB: "5.0", // Asumsi Kuota 5MB
+      usagePct: 0,
+      dataPct: 0,
+      indexPct: 0
+  });
 
-  // 1. Data Listener (SMART LOGIC & SECURE)
+  // 1. Data Listener (MENGGUNAKAN DATA ASLI DARI FIRESTORE)
   useEffect(() => {
     if (!user) return;
 
-    // QUERY AMAN FIREBASE (Strict User Isolation)
     const q = query(
       collection(db, "accounts"),
       where("userId", "==", user.uid)
@@ -53,19 +63,39 @@ export default function DashboardPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       let newStats = { total: 0, finance: 0, gaming: 0, social: 0, alerts: 0, linked: 0 };
       const logs: any[] = [];
+      const timeline = new Array(30).fill(0); // Array untuk 30 hari ke belakang
+      const now = new Date();
 
       let allAccounts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Account[];
       newStats.total = allAccounts.length;
 
+      // Kalkulasi Ukuran Penyimpanan Real (JSON size)
+      const jsonString = JSON.stringify(allAccounts);
+      const usedBytes = new Blob([jsonString]).size;
+      const capacityBytes = 5 * 1024 * 1024; // 5 MB
+      const usagePct = Math.min(100, (usedBytes / capacityBytes) * 100);
+
+      setStorageData({
+          usedBytes,
+          usedKB: (usedBytes / 1024).toFixed(1),
+          freeMB: ((capacityBytes - usedBytes) / (1024 * 1024)).toFixed(2),
+          usagePct,
+          dataPct: usagePct * 0.8, // Estimasi 80% payload data
+          indexPct: usagePct * 0.2 // Estimasi 20% metadata/index
+      });
+
       allAccounts.forEach((data) => {
+        // Stats Kategori
         if (["FINANCE", "BANK", "ECOMMERCE", "WALLET"].includes(data.category)) newStats.finance++;
         if (["GAME", "GAMING", "ENTERTAINMENT"].includes(data.category)) newStats.gaming++;
         if (["SOCIAL", "COMMUNICATION"].includes(data.category)) newStats.social++;
+        
+        // Deteksi Peringatan & Tautan
         if (["BANNED", "SUSPENDED", "SOLD"].includes(data.status)) newStats.alerts++;
-
         const isLinked = data.linkedAccountId || (data.linkedEmail && data.authMethod && data.authMethod !== 'email');
         if (isLinked) newStats.linked++;
 
+        // Helper Tanggal
         const getLogDate = (val: any) => {
             if (!val) return new Date();
             if (val.seconds) return new Date(val.seconds * 1000);
@@ -73,30 +103,47 @@ export default function DashboardPage() {
             return new Date(val); 
         };
 
+        const logDate = getLogDate(data.lastUpdated);
+        const createDate = getLogDate(data.createdAt);
+
+        // Kalkulasi Timeline 30 Hari (Untuk Chart)
+        const diffTime = Math.abs(now.getTime() - logDate.getTime());
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays >= 0 && diffDays < 30) {
+            // Index 29 adalah hari ini, index 0 adalah 29 hari yang lalu
+            timeline[29 - diffDays]++; 
+        }
+
+        // Ekstraksi Logs Real
         logs.push({
             id: data.id,
-            action: data.createdAt && data.lastUpdated && JSON.stringify(data.createdAt) === JSON.stringify(data.lastUpdated) ? "NEW_ENTRY" : "UPDATE_DATA",
+            action: Math.abs(logDate.getTime() - createDate.getTime()) < 1000 ? "NEW_ENTRY" : "UPDATE_RECORD",
             target: data.serviceName || "UNKNOWN_NODE",
-            timestamp: getLogDate(data.lastUpdated),
-            status: "SUCCESS"
+            timestamp: logDate,
+            status: ["BANNED", "SUSPENDED"].includes(data.status) ? "WARNING" : "SUCCESS"
         });
       });
 
+      // Hitung Skor Keamanan Real
+      const penaltyAlerts = newStats.alerts * 15; // -15 poin per akun bocor/banned
+      const penaltyUnlinked = (newStats.total - newStats.linked) * 2; // -2 poin per akun yatim piatu
+      const finalScore = Math.max(0, 100 - penaltyAlerts - penaltyUnlinked);
+
       logs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      
       setStats(newStats);
-      setRecentLogs(logs.slice(0, 5)); 
+      setSecurityScore(finalScore);
+      setActivityTimeline(timeline);
+      setRecentLogs(logs.slice(0, 7)); // Ambil 7 log terbaru
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, [user]);
 
-  // 2. System Simulation Effect
+  // 2. Ticking Clock
   useEffect(() => {
-    const interval = setInterval(() => {
-      setSystemTime(new Date());
-      setCpuLoad(Math.floor(Math.random() * (45 - 20) + 20)); 
-    }, 1000);
+    const interval = setInterval(() => setSystemTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -109,7 +156,7 @@ export default function DashboardPage() {
       textSub: "text-slate-500",
       accent: "text-blue-600 dark:text-blue-400",
       accentBg: "bg-blue-600 dark:bg-blue-500",
-      graphBar: "bg-blue-100 dark:bg-blue-900/30 border-blue-500",
+      graphBar: "bg-blue-500",
       logItem: "bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 hover:border-blue-200"
     },
     hacker: {
@@ -119,7 +166,7 @@ export default function DashboardPage() {
       textSub: "text-green-700",
       accent: "text-cyan-400",
       accentBg: "bg-cyan-500",
-      graphBar: "bg-cyan-900/20 border-cyan-500",
+      graphBar: "bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.6)]",
       logItem: "bg-[#020202] border border-green-900/40 hover:border-green-500/50"
     },
     casual: {
@@ -129,7 +176,7 @@ export default function DashboardPage() {
       textSub: "text-stone-500",
       accent: "text-orange-500 dark:text-orange-400",
       accentBg: "bg-orange-500",
-      graphBar: "bg-orange-100 dark:bg-orange-900/20 border-orange-400",
+      graphBar: "bg-gradient-to-t from-pink-500 to-orange-400",
       logItem: "bg-orange-50/50 dark:bg-stone-950/50 border border-orange-100 dark:border-stone-800 hover:border-orange-300"
     }
   };
@@ -141,11 +188,14 @@ export default function DashboardPage() {
       <div className={cn("flex flex-col items-center justify-center h-[80vh]", cs.wrapper)}>
         <div className="flex items-center gap-2 animate-pulse">
             <Terminal size={24} className={cs.accent} />
-            <span>Memuat Data Vault...</span>
+            <span>Mensinkronisasi Data Vault...</span>
         </div>
       </div>
     );
   }
+
+  // Helper Chart
+  const maxActivity = Math.max(...activityTimeline, 1);
 
   return (
     <div className={cn("min-h-[85vh] space-y-6 animate-in fade-in duration-700", cs.wrapper)}>
@@ -176,17 +226,19 @@ export default function DashboardPage() {
                     {systemTime.toLocaleTimeString()}
                 </div>
             </div>
+            
+            {/* REAL SECURITY SCORE */}
             <div className="space-y-1">
                 <div className={cn("flex items-center gap-2", cs.textSub)}>
-                    <Cpu size={14} /> CPU_LOAD
+                    <ShieldCheck size={14} /> VAULT_HEALTH
                 </div>
-                <div className={cn("w-24 h-6 rounded border relative overflow-hidden", theme === 'hacker' ? 'bg-black border-green-900/50' : 'bg-slate-50 dark:bg-slate-950 border-inherit')}>
+                <div className={cn("w-28 h-6 rounded border relative overflow-hidden", theme === 'hacker' ? 'bg-black border-green-900/50' : 'bg-slate-50 dark:bg-slate-950 border-inherit')}>
                     <div 
-                        className={cn("h-full border-r-2 transition-all duration-500", cs.accentBg, "opacity-20")} 
-                        style={{ width: `${cpuLoad}%` }}
+                        className={cn("h-full transition-all duration-1000", securityScore < 50 ? 'bg-red-500' : securityScore < 80 ? 'bg-amber-500' : 'bg-emerald-500')} 
+                        style={{ width: `${securityScore}%`, opacity: 0.3 }}
                     />
-                    <span className={cn("absolute inset-0 flex items-center justify-center text-[10px] font-bold", cs.accent)}>
-                        {cpuLoad}%
+                    <span className={cn("absolute inset-0 flex items-center justify-center text-[10px] font-bold", cs.accent, securityScore < 80 && 'text-amber-500')}>
+                        {securityScore}% SCORE
                     </span>
                 </div>
             </div>
@@ -203,26 +255,44 @@ export default function DashboardPage() {
             <StatCard label={theme === 'hacker' ? 'ECONOMY_SECTOR' : 'Keuangan'} value={stats.finance} icon={<Wallet size={20} />} theme={theme} intent="success" />
             <StatCard label={theme === 'hacker' ? 'THREAT_LEVEL' : 'Peringatan'} value={stats.alerts} subValue={stats.alerts > 0 ? "WARNING" : "SECURE"} icon={<AlertTriangle size={20} />} theme={theme} intent={stats.alerts > 0 ? "danger" : "default"} />
 
-            {/* BIG CHART AREA */}
+            {/* REAL 30-DAY ACTIVITY CHART */}
             <div className={cn("sm:col-span-2 lg:col-span-3 p-6 relative min-h-[250px] flex flex-col", cs.panel)}>
                 <div className="flex justify-between items-center mb-4">
                     <h3 className={cn("text-sm font-bold flex items-center gap-2", cs.textSub)}>
                         <Zap size={16} className="text-amber-500" />
-                        {theme === 'hacker' ? 'ACTIVITY_FREQUENCY' : 'Frekuensi Aktivitas'}
+                        {theme === 'hacker' ? 'DATA_INPUT_FREQUENCY (30 DAYS)' : 'Aktivitas (30 Hari Terakhir)'}
                     </h3>
                     <div className="flex gap-2 items-center">
-                        <span className={cn("w-2 h-2 rounded-full animate-ping", cs.accentBg)} />
-                        <span className={cn("text-[10px] font-bold", cs.accent)}>LIVE_FEED</span>
+                        <span className={cn("text-[10px] font-bold", cs.textSub)}>LAST 30D</span>
                     </div>
                 </div>
-                <div className="flex-1 flex items-end justify-between gap-1 px-2 pb-2 opacity-80">
-                    {[...Array(30)].map((_, i) => (
-                        <div key={i} className={cn("w-full border-t transition-all duration-1000 ease-in-out", cs.graphBar)} style={{ height: `${Math.max(10, Math.random() * 100)}%`, opacity: Math.random() * 0.5 + 0.3 }} />
-                    ))}
+                <div className="flex-1 flex items-end justify-between gap-1 sm:gap-2 px-2 pb-2">
+                    {activityTimeline.map((count, i) => {
+                        const heightPct = Math.max(5, (count / maxActivity) * 100); 
+                        const isActive = count > 0;
+                        return (
+                            <div key={i} className="flex-1 flex flex-col justify-end group relative h-full">
+                                {/* Tooltip for data points */}
+                                {isActive && (
+                                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-slate-800 text-white text-[10px] px-2 py-1 rounded pointer-events-none transition-opacity z-10 whitespace-nowrap">
+                                      {count} updates
+                                  </div>
+                                )}
+                                <div 
+                                    className={cn("w-full rounded-t-sm transition-all duration-1000 ease-out", isActive ? cs.graphBar : 'bg-slate-200 dark:bg-slate-800')} 
+                                    style={{ height: `${heightPct}%`, opacity: isActive ? 1 : 0.3 }} 
+                                />
+                            </div>
+                        )
+                    })}
+                </div>
+                <div className={cn("flex justify-between px-2 pt-2 border-t text-[9px] font-bold tracking-widest", cs.textSub, theme === 'hacker' ? 'border-green-900/30' : 'border-slate-100 dark:border-slate-800')}>
+                   <span>-30 DAYS</span>
+                   <span>TODAY</span>
                 </div>
             </div>
 
-            {/* STORAGE WIDGET */}
+            {/* REAL STORAGE WIDGET */}
             <div className={cn("sm:col-span-2 lg:col-span-1 p-6 flex flex-col gap-4", cs.panel)}>
                 <h3 className={cn("text-sm font-bold flex items-center gap-2", cs.textSub)}>
                     <HardDrive size={16} />
@@ -231,35 +301,35 @@ export default function DashboardPage() {
                 <div className="flex-1 flex flex-col justify-center gap-4">
                     <div className="space-y-1">
                         <div className={cn("flex justify-between text-[10px]", cs.textSub)}>
-                            <span>{theme === 'hacker' ? 'MAIN_VAULT' : 'Utama'}</span>
-                            <span>45%</span>
+                            <span>{theme === 'hacker' ? 'ENCRYPTED_PAYLOAD' : 'Data Sandi'}</span>
+                            <span>{storageData.usedKB} KB</span>
                         </div>
                         <div className={cn("h-2 w-full rounded-full overflow-hidden border", theme === 'hacker' ? 'bg-black border-green-900' : 'bg-slate-100 dark:bg-slate-800 border-transparent')}>
-                            <div className={cn("h-full w-[45%]", cs.accentBg)} />
+                            <div className={cn("h-full transition-all", cs.accentBg)} style={{ width: `${Math.max(2, storageData.dataPct)}%` }} />
                         </div>
                     </div>
                     <div className="space-y-1">
                         <div className={cn("flex justify-between text-[10px]", cs.textSub)}>
-                            <span>{theme === 'hacker' ? 'BACKUP_SECTOR' : 'Cadangan'}</span>
-                            <span>12%</span>
+                            <span>{theme === 'hacker' ? 'METADATA_INDEX' : 'Indeks & Relasi'}</span>
+                            <span>~20% Pct</span>
                         </div>
                         <div className={cn("h-2 w-full rounded-full overflow-hidden border", theme === 'hacker' ? 'bg-black border-green-900' : 'bg-slate-100 dark:bg-slate-800 border-transparent')}>
-                            <div className="h-full bg-purple-500 w-[12%]" />
+                            <div className="h-full bg-purple-500 transition-all" style={{ width: `${Math.max(1, storageData.indexPct)}%` }} />
                         </div>
                     </div>
-                    <div className={cn("p-3 rounded-xl border text-center mt-2", theme === 'hacker' ? 'bg-black border-green-900/50' : 'bg-slate-50 dark:bg-slate-950 border-inherit')}>
-                        <span className={cn("text-2xl font-bold", cs.textMain)}>15.0</span>
-                        <span className={cn("text-[10px] ml-1", cs.textSub)}>GB FREE</span>
+                    <div className={cn("p-3 rounded-xl border text-center mt-2 flex flex-col justify-center", theme === 'hacker' ? 'bg-black border-green-900/50' : 'bg-slate-50 dark:bg-slate-950 border-inherit')}>
+                        <span className={cn("text-2xl font-bold leading-none", cs.textMain)}>{storageData.freeMB}</span>
+                        <span className={cn("text-[10px] mt-1 font-bold tracking-widest", cs.textSub)}>MB FREE</span>
                     </div>
                 </div>
             </div>
         </div>
 
-        {/* RIGHT COLUMN: SYSTEM LOGS */}
+        {/* RIGHT COLUMN: REAL SYSTEM LOGS */}
         <div className={cn("lg:col-span-1 p-4 flex flex-col", cs.panel)}>
             <h3 className={cn("text-sm font-bold flex items-center gap-2 mb-4 uppercase tracking-wider border-b pb-2", cs.textSub, theme === 'hacker' ? 'border-green-900/50' : 'border-slate-100 dark:border-slate-800')}>
                 <Terminal size={16} />
-                {theme === 'hacker' ? 'System_Logs' : 'Aktivitas'}
+                {theme === 'hacker' ? 'System_Logs' : 'Aktivitas Terbaru'}
             </h3>
             <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar max-h-[400px] lg:max-h-none text-xs font-mono">
                 {recentLogs.length === 0 ? (
@@ -268,14 +338,14 @@ export default function DashboardPage() {
                     recentLogs.map((log, idx) => (
                         <div key={idx} className={cn("p-3 rounded-xl transition-colors group", cs.logItem)}>
                             <div className={cn("flex justify-between text-[10px] mb-1", cs.textSub)}>
-                                <span>{log.timestamp.toLocaleTimeString()}</span>
+                                <span>{log.timestamp.toLocaleDateString('id-ID', { month: 'short', day: 'numeric'})} - {log.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                                 <span className={log.status === 'SUCCESS' ? 'text-emerald-500' : 'text-amber-500'}>[{log.status}]</span>
                             </div>
                             <div className={cn("font-bold truncate flex items-center gap-2", cs.accent)}>
                                 <span className="opacity-50">{'>'}</span> 
                                 {log.action}
                             </div>
-                            <div className={cn("truncate mt-0.5 group-hover:opacity-100 transition-opacity opacity-70", cs.textMain)}>
+                            <div className={cn("truncate mt-0.5 opacity-70 transition-opacity", cs.textMain)}>
                                 TARGET: {log.target}
                             </div>
                         </div>

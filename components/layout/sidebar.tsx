@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Database, Network, User, Shield, Plus, Radar, X, LogOut } from "lucide-react";
+import { LayoutDashboard, Database, Network, Settings, Shield, Plus, Radar, X, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/components/theme-provider";
 import { auth } from "@/lib/firebase";
@@ -15,7 +15,8 @@ const menuItems = [
   // FIX: Path Network diarahkan ke connectivity
   { title: "Network", href: "/dashboard/connectivity", icon: Network }, 
   { title: "Radar", href: "/dashboard/radar", icon: Radar },
-  { title: "Profil", href: "/dashboard/profile", icon: User },
+  // FIX: Menu Profil diganti menjadi Pengaturan karena mencakup konfigurasi global
+  { title: "Pengaturan", href: "/dashboard/settings", icon: Settings },
 ];
 
 interface SidebarProps {
