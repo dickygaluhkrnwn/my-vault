@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { Menu, Shield } from "lucide-react"; // Icon Hamburger & Logo
+import { Header } from "@/components/layout/header"; 
+import { useTheme } from "@/components/theme-provider";
 
 export default function DashboardLayout({
   children,
@@ -10,45 +11,40 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { theme } = useTheme();
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col lg:flex-row font-mono selection:bg-cyan-500/30 selection:text-cyan-200">
+    // Struktur layout utama disesuaikan agar Header tidak ditimpa
+    <div className="min-h-screen flex flex-col font-sans transition-colors duration-500 bg-slate-50 dark:bg-slate-950/50 text-slate-900 dark:text-slate-100">
       
-      {/* MOBILE HEADER (Hanya muncul di layar kecil) */}
-      <header className="lg:hidden h-16 border-b border-slate-800 bg-slate-950 flex items-center justify-between px-4 sticky top-0 z-30">
-        <div className="flex items-center gap-3">
-            <div className="p-1.5 bg-cyan-950/30 border border-cyan-500/30 rounded">
-              <Shield size={18} className="text-cyan-400" />
-            </div>
-            <span className="font-bold text-slate-200 tracking-widest">MY_VAULT</span>
-        </div>
-        <button 
-            onClick={() => setIsSidebarOpen(true)}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-900 rounded transition-colors"
-        >
-            <Menu size={24} />
-        </button>
-      </header>
+      {/* Header merentang penuh di atas */}
+      <Header onOpenSidebar={() => setIsSidebarOpen(true)} />
 
-      {/* Sidebar (Responsive State passed here) */}
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-
-      {/* Main Content Area */}
-      {/* lg:ml-64 memberikan margin kiri hanya di desktop */}
-      <main className="flex-1 lg:ml-64 min-h-[calc(100vh-64px)] lg:min-h-screen bg-slate-950 text-slate-200 transition-all duration-300 relative">
-        {/* Global Grid Background Effect */}
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none z-0" 
-             style={{ 
-                 backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', 
-                 backgroundSize: '50px 50px' 
-             }} 
-        />
+      {/* Kontainer utama diberi Padding Top agar isinya tidak menyusup ke bawah Header yang fixed */}
+      <div className="flex flex-1 pt-16 lg:pt-20">
         
-        {/* Content Padding yang responsif */}
-        <div className="p-4 md:p-8 max-w-[1600px] mx-auto relative z-10">
-          {children}
-        </div>
-      </main>
+        {/* Sidebar dipanggil di sini */}
+        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+
+        {/* Main Content Area: Margin kiri menyisakan tempat untuk Sidebar yang menciut (w-20 / 80px) */}
+        <main className="flex-1 relative transition-all duration-500 overflow-x-hidden lg:ml-20">
+          
+          {/* Subtle Background Pattern */}
+          <div className="absolute inset-0 opacity-[0.4] dark:opacity-[0.15] pointer-events-none z-0" 
+               style={{ 
+                   backgroundImage: theme === 'hacker' 
+                      ? 'linear-gradient(rgba(34, 197, 94, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(34, 197, 94, 0.1) 1px, transparent 1px)' 
+                      : 'radial-gradient(currentColor 1px, transparent 1px)', 
+                   backgroundSize: theme === 'hacker' ? '40px 40px' : '32px 32px' 
+               }} 
+          />
+          
+          {/* Area Render Halaman */}
+          <div className="p-4 md:p-8 xl:p-10 max-w-7xl mx-auto relative z-10">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

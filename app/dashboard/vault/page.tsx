@@ -7,68 +7,40 @@ import {
   collection, 
   query, 
   onSnapshot, 
-  orderBy,
+  where,
   deleteDoc,
   doc
 } from "firebase/firestore";
-import { db, auth } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { Account, AccountCategory } from "@/lib/types/schema";
-import { TEMPLATES } from "@/lib/constants/templates"; 
+import { TEMPLATES, TemplateField } from "@/lib/constants/templates"; 
+import { useAuth } from "@/components/auth-provider";
+import { useTheme } from "@/components/theme-provider";
+import { cn } from "@/lib/utils";
 import { 
-  Plus, 
-  Search, 
-  Gamepad2, 
-  Wallet, 
-  Share2, 
-  Briefcase, 
-  Mail, 
-  Music, 
-  MoreVertical,
-  Loader2,
-  X,
-  User,
-  Pencil,
-  Trash2,
-  AlertTriangle,
-  Eye,
-  Terminal,
-  Database,
-  GraduationCap,
-  ShoppingBag,
-  MoreHorizontal,
-  Clock
+  Plus, Search, Gamepad2, Wallet, Share2, Briefcase, Mail, Music, 
+  MoreVertical, Loader2, X, User, Pencil, Trash2, AlertTriangle, 
+  Eye, EyeOff, Terminal, Database, GraduationCap, ShoppingBag, MoreHorizontal, Clock,
+  ArrowUpDown, Filter, Check
 } from "lucide-react";
-import { onAuthStateChanged } from "firebase/auth";
-import { cn, formatDate } from "@/lib/utils";
-
-// --- THEME CONFIG ---
-const THEME = {
-  bg: "bg-slate-950",
-  panel: "bg-slate-900/50",
-  border: "border-slate-800",
-  accent: "text-cyan-400",
-  accentBorder: "border-cyan-500/30",
-  textMain: "text-slate-200",
-  textDim: "text-slate-500",
-};
 
 // --- HELPERS ---
-const getCategoryIcon = (category: AccountCategory) => {
+const getCategoryIcon = (category: AccountCategory | string) => {
   switch (category) {
-    case "GAME": return <Gamepad2 size={20} className="text-purple-400" />;
-    case "FINANCE": return <Wallet size={20} className="text-emerald-400" />;
-    case "SOCIAL": return <Share2 size={20} className="text-blue-400" />;
-    case "WORK": return <Briefcase size={20} className="text-amber-400" />;
-    case "UTILITY": return <Mail size={20} className="text-orange-400" />;
-    case "ENTERTAINMENT": return <Music size={20} className="text-pink-400" />;
-    case "EDUCATION": return <GraduationCap size={20} className="text-yellow-400" />;
-    case "ECOMMERCE": return <ShoppingBag size={20} className="text-rose-400" />;
+    case "GAME": return <Gamepad2 size={20} className="text-purple-500 dark:text-purple-400" />;
+    case "FINANCE": return <Wallet size={20} className="text-emerald-500 dark:text-emerald-400" />;
+    case "SOCIAL": return <Share2 size={20} className="text-blue-500 dark:text-blue-400" />;
+    case "WORK": return <Briefcase size={20} className="text-amber-500 dark:text-amber-400" />;
+    case "UTILITY": return <Mail size={20} className="text-orange-500 dark:text-orange-400" />;
+    case "ENTERTAINMENT": return <Music size={20} className="text-pink-500 dark:text-pink-400" />;
+    case "EDUCATION": return <GraduationCap size={20} className="text-yellow-500 dark:text-yellow-400" />;
+    case "ECOMMERCE": return <ShoppingBag size={20} className="text-rose-500 dark:text-rose-400" />;
     default: return <MoreHorizontal size={20} className="text-slate-400" />;
   }
 };
 
 const CATEGORIES: { label: string; value: AccountCategory | "ALL" }[] = [
-  { label: "ALL_DATA", value: "ALL" },
+  { label: "ALL DATA", value: "ALL" },
   { label: "SOCIAL", value: "SOCIAL" },
   { label: "GAME", value: "GAME" },
   { label: "FINANCE", value: "FINANCE" },
@@ -80,36 +52,37 @@ const CATEGORIES: { label: string; value: AccountCategory | "ALL" }[] = [
   { label: "OTHER", value: "OTHER" },
 ];
 
-// --- KOMPONEN LOGIKA UTAMA ---
 function VaultContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const ownerFilter = searchParams.get("owner");
+  
+  const { theme } = useTheme();
+  const { user } = useAuth();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  
+  // FILTER & SORT STATES
   const [searchQuery, setSearchQuery] = useState("");
-  const [user, setUser] = useState<any>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [sortBy, setSortBy] = useState<"name-asc" | "name-desc" | "date-desc" | "date-asc">("name-asc");
+  const [filterStatus, setFilterStatus] = useState<"ALL" | "ACTIVE" | "BREACHED">("ALL");
 
-  // --- STATE ACTION ---
+  // MENU STATES
+  const [activeToolbarMenu, setActiveToolbarMenu] = useState<'sort' | 'filter' | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // 1. Cek Login
+  // FETCH DATA DENGAN SECURE QUERY
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // 2. Fetch Data (Realtime Listener)
-  useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setLoading(true);
+      return;
+    }
     
-    const accountsRef = collection(db, "accounts");
-    const q = query(accountsRef, orderBy("serviceName", "asc"));
+    const q = query(collection(db, "accounts"), where("userId", "==", user.uid));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map((doc) => {
@@ -122,6 +95,7 @@ function VaultContent() {
           details: d.details || {} 
         };
       }) as Account[];
+      
       setAccounts(data);
       setLoading(false);
     }, (error) => {
@@ -131,73 +105,148 @@ function VaultContent() {
     return () => unsubscribe();
   }, [user]);
 
-  // 3. Smart Filter Logic
-  const filteredAccounts = accounts.filter((acc) => {
+  // ADVANCED SMART FILTER & SORTING
+  let processedAccounts = accounts.filter((acc) => {
     const matchesCategory = selectedCategory === "ALL" || acc.category === selectedCategory;
-    
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch = 
       acc.serviceName?.toLowerCase().includes(searchLower) || 
       acc.identifier?.toLowerCase().includes(searchLower) ||
-      Object.values(acc.details || {}).some(val => 
-        String(val).toLowerCase().includes(searchLower)
-      );
+      Object.values(acc.details || {}).some(val => String(val).toLowerCase().includes(searchLower));
 
-    const matchesOwner = ownerFilter 
-      ? acc.owner?.toLowerCase() === ownerFilter.toLowerCase() 
-      : true;
+    const matchesOwner = ownerFilter ? acc.owner?.toLowerCase() === ownerFilter.toLowerCase() : true;
+    
+    const matchesStatus = filterStatus === "ALL" || 
+      (filterStatus === "ACTIVE" && acc.status === "ACTIVE") ||
+      (filterStatus === "BREACHED" && acc.status !== "ACTIVE");
       
-    return matchesCategory && matchesSearch && matchesOwner;
+    return matchesCategory && matchesSearch && matchesOwner && matchesStatus;
+  });
+
+  processedAccounts.sort((a, b) => {
+    if (sortBy === "name-asc") return a.serviceName.localeCompare(b.serviceName);
+    if (sortBy === "name-desc") return b.serviceName.localeCompare(a.serviceName);
+    if (sortBy === "date-desc") return b.lastUpdated.getTime() - a.lastUpdated.getTime();
+    if (sortBy === "date-asc") return a.lastUpdated.getTime() - b.lastUpdated.getTime();
+    return 0;
   });
 
   const clearOwnerFilter = () => router.push("/dashboard/vault");
-
-  const handleEdit = (id: string) => {
-    router.push(`/dashboard/vault/edit/${id}`);
-  };
+  const handleEdit = (id: string) => router.push(`/dashboard/vault/edit/${id}`);
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
       await deleteDoc(doc(db, "accounts", deleteTarget.id));
       setDeleteTarget(null);
     } catch (error) {
-      alert("Gagal menghapus akun.");
+      alert("Gagal menghapus akun. Silakan coba lagi.");
       console.error(error);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
+  // Cek klik di luar menu toolbar untuk menutupnya otomatis
+  useEffect(() => {
+    const closeToolbar = () => setActiveToolbarMenu(null);
+    if (activeToolbarMenu) {
+      window.addEventListener('click', closeToolbar);
+    }
+    return () => window.removeEventListener('click', closeToolbar);
+  }, [activeToolbarMenu]);
+
+  // --- PEMETAAN STYLE TEMA DINAMIS ---
+  const styles = {
+    formal: {
+      wrapper: "font-sans text-slate-900 dark:text-slate-100",
+      accent: "text-blue-600 dark:text-blue-400",
+      accentBg: "bg-blue-600",
+      textMain: "text-slate-900 dark:text-slate-100",
+      textSub: "text-slate-500",
+      searchPanel: "bg-white/90 dark:bg-slate-950/90 border-slate-200 dark:border-slate-800 shadow-sm",
+      input: "bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 focus:border-blue-500 text-slate-900 dark:text-slate-100",
+      card: "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-blue-500/50 hover:shadow-lg shadow-sm rounded-xl cursor-pointer",
+      cardHeader: "bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800/50",
+      btnPrimary: "bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-md",
+      btnOutline: "border-slate-300 dark:border-slate-700 hover:border-blue-500 hover:text-blue-600 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300",
+      catActive: "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-500/50",
+      catInactive: "bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800 hover:border-slate-300",
+      menuItem: "hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300",
+      menuBg: "bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-xl"
+    },
+    hacker: {
+      wrapper: "font-mono text-green-500",
+      accent: "text-cyan-400",
+      accentBg: "bg-cyan-500",
+      textMain: "text-green-400",
+      textSub: "text-green-700",
+      searchPanel: "bg-[#050505]/95 border-green-900/50 shadow-[0_4px_30px_rgba(0,0,0,0.8)]",
+      input: "bg-black border-green-900 focus:border-green-500 text-green-400",
+      card: "bg-[#050505] border-green-900/50 hover:border-green-500/50 hover:shadow-[0_0_15px_rgba(34,197,94,0.15)] rounded-sm cursor-pointer",
+      cardHeader: "bg-black border-b border-green-900/30",
+      btnPrimary: "bg-green-900/20 hover:bg-green-900/40 text-green-400 border border-green-500/50 rounded-sm shadow-sm",
+      btnOutline: "border-green-900/50 hover:border-green-500/50 bg-black text-green-600 hover:text-green-400 rounded-sm",
+      catActive: "bg-green-900/30 text-green-400 border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.2)]",
+      catInactive: "bg-black text-green-700 border-green-900/50 hover:border-green-700",
+      menuItem: "hover:bg-green-900/20 text-green-500",
+      menuBg: "bg-[#020202] border border-green-900/50 shadow-[0_0_20px_rgba(34,197,94,0.1)]"
+    },
+    casual: {
+      wrapper: "font-sans text-stone-800 dark:text-stone-100",
+      accent: "text-orange-500 dark:text-orange-400",
+      accentBg: "bg-gradient-to-r from-orange-500 to-pink-500",
+      textMain: "text-stone-800 dark:text-stone-100",
+      textSub: "text-stone-500",
+      searchPanel: "bg-white/90 dark:bg-stone-900/90 border-orange-200 dark:border-stone-800 shadow-lg",
+      input: "bg-orange-50 dark:bg-stone-950 border-orange-200 dark:border-stone-700 focus:border-orange-500 text-stone-800 dark:text-stone-100",
+      card: "bg-white dark:bg-stone-900 border-orange-200 dark:border-stone-800 hover:border-orange-400 hover:shadow-xl shadow-orange-900/5 rounded-3xl cursor-pointer",
+      cardHeader: "bg-orange-50/50 dark:bg-stone-950/50 border-b border-orange-100 dark:border-stone-800",
+      btnPrimary: "bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white rounded-xl shadow-md",
+      btnOutline: "border-orange-200 dark:border-stone-700 hover:border-orange-400 hover:text-orange-500 bg-white dark:bg-stone-950 text-stone-600 dark:text-stone-400 rounded-xl",
+      catActive: "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border-orange-400/50",
+      catInactive: "bg-white dark:bg-stone-950 text-stone-500 border-orange-200 dark:border-stone-800 hover:border-orange-300",
+      menuItem: "hover:bg-orange-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300",
+      menuBg: "bg-white dark:bg-stone-950 border border-orange-100 dark:border-stone-800 shadow-xl rounded-2xl"
+    }
+  };
+
+  const cs = styles[theme];
+
   return (
-    <div className={`min-h-screen ${THEME.bg} text-slate-200 font-mono relative space-y-6 animate-in fade-in duration-500`}>
+    <div className={cn("min-h-[85vh] relative flex flex-col gap-6 animate-in fade-in duration-500 pb-20", cs.wrapper)}>
       
       {/* --- MODAL KONFIRMASI DELETE --- */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 rounded-xl border border-red-900/50 shadow-[0_0_50px_rgba(220,38,38,0.2)] max-w-sm w-full p-6 space-y-4 relative overflow-hidden">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200 font-mono" onClick={(e) => e.stopPropagation()}>
+          <div className={cn("rounded-2xl shadow-[0_0_50px_rgba(220,38,38,0.2)] max-w-sm w-full p-6 lg:p-8 space-y-5 relative overflow-hidden", theme === 'hacker' ? 'bg-[#050505] border border-red-900/50' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800')}>
             <div className="absolute top-0 left-0 w-full h-1 bg-red-600 animate-pulse" />
             <div className="flex items-center gap-3 text-red-500">
-              <div className="p-2 bg-red-950/50 rounded-full border border-red-900">
+              <div className={cn("p-2 rounded-full border", theme === 'hacker' ? 'bg-red-950/50 border-red-900' : 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/50')}>
                 <AlertTriangle size={24} />
               </div>
               <h3 className="text-lg font-bold tracking-wider">CONFIRM_DELETION</h3>
             </div>
-            <p className="text-slate-400 text-sm border-l-2 border-red-900/50 pl-3">
+            <p className={cn("text-sm border-l-2 pl-3 leading-relaxed", theme === 'hacker' ? 'text-slate-400 border-red-900/50' : 'text-slate-600 dark:text-slate-400 border-red-200 dark:border-red-900/50')}>
               Initiating removal sequence for: <br/>
-              <strong className="text-white">{deleteTarget.serviceName}</strong> ({deleteTarget.identifier})? 
-              <br/><span className="text-red-400 text-xs mt-1 block">WARNING: THIS ACTION IS IRREVERSIBLE.</span>
+              <strong className={cn("block mt-1", cs.textMain)}>{deleteTarget.serviceName}</strong> 
+              <span className="opacity-70 text-xs">{deleteTarget.identifier}</span>
+              <br/><br/><span className={cn("text-[10px] font-bold px-2 py-1 rounded inline-block border", theme === 'hacker' ? 'text-red-400 bg-red-950/30 border-red-900/30' : 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/50')}>WARNING: ACTION IS IRREVERSIBLE.</span>
             </p>
-            <div className="flex gap-3 justify-end pt-2">
+            <div className="flex gap-3 justify-end pt-3">
               <button 
-                onClick={() => setDeleteTarget(null)}
-                className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 rounded border border-transparent hover:border-slate-600 transition-all"
+                onClick={(e) => { e.stopPropagation(); setDeleteTarget(null); }}
+                className={cn("px-5 py-2.5 text-xs font-bold transition-all", cs.btnOutline)}
               >
                 ABORT
               </button>
               <button 
-                onClick={handleDeleteConfirm}
-                className="px-4 py-2 text-xs font-bold text-white bg-red-600/80 hover:bg-red-600 rounded border border-red-500/50 shadow-[0_0_15px_rgba(220,38,38,0.4)] flex items-center gap-2 transition-all"
+                onClick={(e) => { e.stopPropagation(); handleDeleteConfirm(); }}
+                disabled={isDeleting}
+                className="px-5 py-2.5 text-xs font-bold text-white bg-red-600/90 hover:bg-red-600 rounded-lg border border-red-500/50 shadow-md flex items-center gap-2 transition-all disabled:opacity-50"
               >
-                <Trash2 size={14} />
+                {isDeleting ? <Loader2 size={14} className="animate-spin"/> : <Trash2 size={14} />}
                 EXECUTE
               </button>
             </div>
@@ -206,172 +255,242 @@ function VaultContent() {
       )}
 
       {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-6">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-white flex items-center gap-3">
-            <Database className="text-cyan-400" />
-            DATABASE_VAULT
-          </h1>
-          <p className="text-xs text-slate-500 mt-1 font-mono tracking-widest">
-            SECURE STORAGE // ENCRYPTED NODES
-          </p>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex items-center gap-4">
+          <div className={cn("p-3 border flex items-center justify-center", theme === 'hacker' ? 'bg-[#050505] border-green-900/50 rounded-sm' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl shadow-sm')}>
+             <Database className={cs.accent} size={28} />
+          </div>
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight flex items-center gap-2">
+              {theme === 'hacker' ? 'DATABASE_VAULT' : 'Data Vault'}
+            </h1>
+            <p className={cn("text-xs lg:text-sm mt-1 font-medium", cs.textSub, theme === 'hacker' && 'tracking-widest uppercase font-mono')}>
+              {theme === 'hacker' ? 'SECURE STORAGE // ENCRYPTED NODES' : 'Kelola dan amankan semua kredensial digital Anda.'}
+            </p>
+          </div>
         </div>
         <Link 
           href="/dashboard/vault/create" 
-          className="flex items-center gap-2 bg-cyan-900/20 text-cyan-400 px-4 py-2 rounded border border-cyan-500/30 hover:bg-cyan-500/20 hover:border-cyan-400 hover:shadow-[0_0_15px_rgba(34,211,238,0.3)] transition-all text-xs font-bold tracking-wider group w-full md:w-auto justify-center"
+          className={cn("flex items-center gap-2 px-5 py-2.5 transition-all text-sm font-bold tracking-wider group w-full md:w-auto justify-center", cs.btnPrimary, theme !== 'casual' && theme !== 'hacker' && 'rounded-xl')}
         >
-          <Plus size={16} className="group-hover:rotate-90 transition-transform" />
-          NEW_ENTRY
+          <Plus size={18} className="group-hover:rotate-90 transition-transform" />
+          {theme === 'hacker' ? 'NEW_ENTRY' : 'Tambah Data'}
         </Link>
       </div>
 
-      {/* SEARCH & FILTER BAR (STICKY ADJUSTED) */}
-      <div className={`p-4 rounded-xl border ${THEME.border} bg-slate-900/80 backdrop-blur-md space-y-4 sticky top-[4.5rem] lg:top-4 z-20 shadow-xl transition-all`}>
+      {/* ADVANCED DATA TOOLBAR (STICKY GLASSMORPHISM) */}
+      <div className={cn("p-4 border backdrop-blur-xl space-y-4 sticky top-4 z-30 transition-all", cs.searchPanel, theme === 'formal' ? 'rounded-2xl' : theme === 'casual' ? 'rounded-3xl' : 'rounded-sm')}>
         
         {ownerFilter && (
-            <div className="bg-blue-950/30 border border-blue-500/30 rounded p-2 px-4 flex items-center justify-between text-blue-300 text-xs mb-2">
-            <div className="flex items-center gap-2">
-                <User size={14} />
-                <span>FILTER_ACTIVE: OWNER = <span className="font-bold text-white">{ownerFilter}</span></span>
-            </div>
-            <button onClick={clearOwnerFilter} className="hover:text-white"><X size={14} /></button>
+            <div className={cn("border rounded-lg p-2.5 px-4 flex items-center justify-between text-xs mb-2", theme === 'hacker' ? 'bg-green-950/20 border-green-500/30 text-green-400' : 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/50 text-blue-600 dark:text-blue-400')}>
+              <div className="flex items-center gap-2">
+                  <User size={14} />
+                  <span>{theme === 'hacker' ? 'FILTER_ACTIVE: OWNER =' : 'Menampilkan data milik:'} <span className="font-bold">{ownerFilter}</span></span>
+              </div>
+              <button onClick={clearOwnerFilter} className="hover:opacity-70 transition-opacity"><X size={16} /></button>
             </div>
         )}
 
-        <div className="flex flex-col lg:flex-row gap-4">
-            {/* Terminal Input */}
+        <div className="flex flex-col lg:flex-row gap-3">
+            {/* Filter Lokal / Saringan Data */}
             <div className="relative flex-1 group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-cyan-500 font-bold">{'>'}_</span>
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Search size={18} className={cn("transition-colors", cs.textSub, "group-focus-within:text-blue-500", theme === 'hacker' && 'group-focus-within:text-green-500', theme === 'casual' && 'group-focus-within:text-orange-500')} />
                 </div>
                 <input 
                     type="text" 
-                    placeholder="search_query (name, id, server, rank...)" 
-                    className="w-full bg-slate-950/50 text-slate-200 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-900/50 transition-all font-mono text-sm placeholder:text-slate-600"
+                    placeholder={theme === 'hacker' ? "filter_table (name, identifier...)" : "Saring tabel (layanan atau username)..."} 
+                    className={cn("w-full border py-2.5 pl-10 pr-4 outline-none transition-all text-sm", cs.input, theme !== 'hacker' ? 'rounded-xl' : 'rounded-sm', theme === 'hacker' && 'font-mono')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                 />
-                <div className="absolute right-3 top-2.5">
-                    <Search size={16} className="text-slate-600 group-focus-within:text-cyan-500 transition-colors" />
-                </div>
             </div>
 
-            {/* Filter Toggles (Horizontal Scroll on Mobile) */}
-            <div className="flex gap-2 overflow-x-auto pb-2 lg:pb-0 custom-scrollbar -mx-4 px-4 lg:mx-0 lg:px-0">
-                {CATEGORIES.map((cat) => (
-                    <button
-                        key={cat.value}
-                        onClick={() => setSelectedCategory(cat.value)}
-                        className={cn(
-                            "px-3 py-2 rounded text-[10px] font-bold tracking-wider border transition-all whitespace-nowrap",
-                            selectedCategory === cat.value 
-                            ? "bg-cyan-950/40 text-cyan-400 border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.1)]" 
-                            : "bg-slate-900/50 text-slate-500 border-slate-800 hover:border-slate-600 hover:text-slate-300"
-                        )}
+            {/* Advanced Toolbar: Sort & Filter Buttons */}
+            <div className="flex items-center gap-2 relative">
+                
+                {/* TOMBOL URUTKAN (SORT) */}
+                <div className="relative w-1/2 lg:w-auto">
+                    <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveToolbarMenu(activeToolbarMenu === 'sort' ? null : 'sort');
+                        }}
+                        className={cn("w-full lg:w-auto px-4 py-2.5 flex items-center justify-between lg:justify-center gap-2 text-sm font-bold border transition-colors", cs.btnOutline)}
                     >
-                        {cat.label}
+                        <span className="flex items-center gap-2"><ArrowUpDown size={16} /> <span className="hidden sm:inline">Urutkan</span></span>
                     </button>
-                ))}
+
+                    {/* Dropdown Urutkan */}
+                    {activeToolbarMenu === 'sort' && (
+                        <div onClick={(e) => e.stopPropagation()} className={cn("absolute right-0 lg:left-0 top-full mt-2 w-48 border z-40 py-1.5 animate-in fade-in zoom-in-95 duration-200", cs.menuBg)}>
+                            {[
+                              { id: 'name-asc', label: 'Nama (A-Z)' },
+                              { id: 'name-desc', label: 'Nama (Z-A)' },
+                              { id: 'date-desc', label: 'Terbaru Diubah' },
+                              { id: 'date-asc', label: 'Terlama Diubah' }
+                            ].map((opt) => (
+                              <button 
+                                key={opt.id}
+                                onClick={() => { setSortBy(opt.id as any); setActiveToolbarMenu(null); }}
+                                className={cn("w-full text-left px-4 py-2 text-xs font-bold flex items-center justify-between transition-colors", cs.menuItem, sortBy === opt.id ? cs.accent : "")}
+                              >
+                                {opt.label}
+                                {sortBy === opt.id && <Check size={14} />}
+                              </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* TOMBOL FILTER STATUS */}
+                <div className="relative w-1/2 lg:w-auto">
+                    <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveToolbarMenu(activeToolbarMenu === 'filter' ? null : 'filter');
+                        }}
+                        className={cn("w-full lg:w-auto px-4 py-2.5 flex items-center justify-between lg:justify-center gap-2 text-sm font-bold border transition-colors", cs.btnOutline, filterStatus !== 'ALL' && "border-blue-500 text-blue-500")}
+                    >
+                        <span className="flex items-center gap-2">
+                          <Filter size={16} className={filterStatus !== 'ALL' ? cs.accent : ''} /> 
+                          <span className="hidden sm:inline">Status</span>
+                        </span>
+                        {filterStatus !== 'ALL' && <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />}
+                    </button>
+
+                    {/* Dropdown Filter */}
+                    {activeToolbarMenu === 'filter' && (
+                        <div onClick={(e) => e.stopPropagation()} className={cn("absolute right-0 top-full mt-2 w-48 border z-40 py-1.5 animate-in fade-in zoom-in-95 duration-200", cs.menuBg)}>
+                            {[
+                              { id: 'ALL', label: 'Semua Akun' },
+                              { id: 'ACTIVE', label: 'Aman (Aktif)' },
+                              { id: 'BREACHED', label: 'Terindikasi Bocor' }
+                            ].map((opt) => (
+                              <button 
+                                key={opt.id}
+                                onClick={() => { setFilterStatus(opt.id as any); setActiveToolbarMenu(null); }}
+                                className={cn("w-full text-left px-4 py-2 text-xs font-bold flex items-center justify-between transition-colors", cs.menuItem, filterStatus === opt.id ? cs.accent : "")}
+                              >
+                                {opt.label}
+                                {filterStatus === opt.id && <Check size={14} />}
+                              </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
+        </div>
+
+        {/* Filter Kategori Horizontal Scroll - Expanded */}
+        <div className="flex gap-2 overflow-x-auto pb-2 lg:pb-0 custom-scrollbar -mx-4 px-4 lg:mx-0 lg:px-0 scroll-smooth">
+            {CATEGORIES.map((cat) => (
+                <button
+                    key={cat.value}
+                    onClick={() => setSelectedCategory(cat.value)}
+                    className={cn(
+                        "flex-1 px-4 py-2 text-xs font-bold tracking-wider border transition-all whitespace-nowrap text-center",
+                        theme === 'casual' ? 'rounded-xl' : theme === 'formal' ? 'rounded-lg' : 'rounded-sm',
+                        selectedCategory === cat.value ? cs.catActive : cs.catInactive
+                    )}
+                >
+                    {cat.label}
+                </button>
+            ))}
         </div>
       </div>
 
       {/* CONTENT GRID */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-4 text-cyan-500/50">
+        <div className={cn("flex flex-col items-center justify-center py-32 gap-4", cs.accent)}>
           <Loader2 className="animate-spin" size={48} />
-          <p className="text-xs tracking-[0.2em] animate-pulse">DECRYPTING_VAULT...</p>
+          <p className="text-sm tracking-[0.2em] animate-pulse font-mono font-bold">DECRYPTING_VAULT...</p>
         </div>
-      ) : filteredAccounts.length === 0 ? (
-        <div className="text-center py-20 border border-dashed border-slate-800 rounded-xl bg-slate-900/20">
-          <div className="inline-flex p-4 bg-slate-800/50 rounded-full mb-4 text-slate-600">
-            <Terminal size={32} />
+      ) : processedAccounts.length === 0 ? (
+        <div className={cn("text-center py-24 border border-dashed rounded-2xl flex flex-col items-center justify-center", theme === 'hacker' ? 'border-green-900/50 bg-[#050505]' : 'border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm')}>
+          <div className={cn("inline-flex p-5 rounded-full mb-5", theme === 'hacker' ? 'bg-green-950/30 text-green-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-400')}>
+            <Database size={40} strokeWidth={1.5} />
           </div>
-          <h3 className="text-slate-400 font-bold tracking-wide">NO_DATA_FOUND</h3>
-          <p className="text-slate-600 text-xs mt-2 font-mono">
-            {searchQuery 
-              ? `query "${searchQuery}" returned 0 results.` 
-              : "Database is empty. Initialize new entry."}
+          <h3 className={cn("font-bold text-lg tracking-wide", cs.textMain)}>{theme === 'hacker' ? 'NO_DATA_FOUND' : 'Data Tidak Ditemukan'}</h3>
+          <p className={cn("text-sm mt-2 max-w-sm px-4", cs.textSub)}>
+            {searchQuery || filterStatus !== 'ALL' || selectedCategory !== 'ALL'
+              ? `Tidak ada data yang cocok dengan kriteria filter saat ini.` 
+              : "Brankas Anda masih kosong. Silakan tambahkan kredensial baru untuk memulainya."}
           </p>
+          {(!searchQuery && filterStatus === 'ALL' && selectedCategory === 'ALL') && (
+            <Link href="/dashboard/vault/create" className={cn("mt-6 px-6 py-2.5 text-sm font-bold transition-all", cs.btnPrimary, theme !== 'casual' && theme !== 'hacker' && 'rounded-lg')}>
+               {theme === 'hacker' ? '+ INIT_ENTRY' : 'Tambah Data Sekarang'}
+            </Link>
+          )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20">
-          {filteredAccounts.map((account) => {
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {processedAccounts.map((account) => {
             const templateFields = TEMPLATES[account.category] || [];
             const highlights = templateFields
               .filter(field => (account.details as any)?.[field.key])
               .slice(0, 2);
 
+            const displayDate = new Intl.DateTimeFormat('id-ID', { month: 'short', day: 'numeric', year: 'numeric' }).format(account.lastUpdated);
+
             return (
-              <div key={account.id} className="group relative bg-slate-900/40 border border-slate-800 hover:border-cyan-500/30 rounded-xl overflow-hidden transition-all duration-300 hover:shadow-[0_0_20px_rgba(6,182,212,0.05)] hover:-translate-y-1">
+              <div 
+                key={account.id} 
+                onClick={() => router.push(`/dashboard/vault/${account.id}`)}
+                className={cn("group relative border flex flex-col transition-all duration-300 overflow-hidden cursor-pointer", cs.card)}
+              >
                 
-                <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/0 via-cyan-500/5 to-cyan-500/0 opacity-0 group-hover:opacity-100 translate-y-[-100%] group-hover:translate-y-[100%] transition-all duration-1000 pointer-events-none" />
+                {/* Decorative Top Line */}
+                <div className={cn("absolute top-0 left-0 w-full h-1 scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-500 z-20", cs.accentBg)} />
 
-                <Link href={`/dashboard/vault/${account.id}`} className="absolute inset-0 z-0" />
-
-                <div className="p-5 relative z-10 pointer-events-none">
+                <div className={cn("p-5 relative z-10 flex-1 flex flex-col", cs.cardHeader)}>
                   
                   {/* Header Card */}
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-lg group-hover:border-cyan-500/30 transition-colors">
+                  <div className="flex justify-between items-start mb-5">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className={cn("p-3 border rounded-xl shrink-0 transition-colors shadow-sm", theme === 'hacker' ? 'bg-black border-green-900/50 group-hover:border-green-500/50 rounded-sm' : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 group-hover:border-blue-500/30')}>
                         {getCategoryIcon(account.category)}
                       </div>
-                      <div>
-                        <h3 className="font-bold text-slate-200 text-sm line-clamp-1 group-hover:text-cyan-400 transition-colors">{account.serviceName}</h3>
+                      <div className="overflow-hidden">
+                        <h3 className={cn("font-bold text-base line-clamp-1 transition-colors", cs.textMain, "group-hover:text-blue-500", theme === 'hacker' && 'group-hover:text-green-400', theme === 'casual' && 'group-hover:text-orange-500')}>{account.serviceName}</h3>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[9px] text-slate-500 font-bold bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 uppercase tracking-wider">
+                          <span className={cn("text-[9px] font-bold px-2 py-0.5 border uppercase tracking-wider font-mono", theme === 'hacker' ? 'bg-black text-green-600 border-green-900/50 rounded-sm' : 'bg-white dark:bg-slate-950 text-slate-500 border-slate-200 dark:border-slate-800 rounded')}>
                               {account.category}
                           </span>
-                          <span className={`w-1.5 h-1.5 rounded-full ${account.status === 'ACTIVE' ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-red-500'}`} />
+                          <span title={account.status === 'ACTIVE' ? 'Aman' : 'Terdeteksi Kebocoran'} className={`w-2 h-2 rounded-full shadow-sm ${account.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-red-500 animate-pulse'}`} />
                         </div>
                       </div>
                     </div>
                     
-                    <div className="relative pointer-events-auto">
+                    {/* Action Menu (Ellipsis) */}
+                    <div className="relative shrink-0 ml-2">
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
                           setOpenMenuId(openMenuId === account.id ? null : account.id);
                         }}
-                        className="text-slate-600 hover:text-cyan-400 p-1 hover:bg-cyan-950/30 rounded transition-colors"
+                        className={cn("p-1.5 rounded-lg transition-colors", cs.textSub, "hover:bg-slate-200 dark:hover:bg-slate-800", theme === 'hacker' && 'hover:bg-green-900/30 rounded-sm')}
                       >
-                        <MoreVertical size={16} />
+                        <MoreVertical size={18} />
                       </button>
                       
                       {openMenuId === account.id && (
                         <>
-                          <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
-                          <div className="absolute right-0 top-full mt-2 w-32 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-20 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                          <div className="fixed inset-0 z-10 cursor-default" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} />
+                          <div className={cn("absolute right-0 top-full mt-2 w-36 border z-20 py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-200", cs.menuBg)}>
                             <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/dashboard/vault/${account.id}`);
-                              }}
-                              className="w-full text-left px-3 py-2 text-xs font-bold text-slate-400 hover:bg-cyan-950/50 hover:text-cyan-400 flex items-center gap-2"
+                              onClick={(e) => { e.stopPropagation(); handleEdit(account.id); }}
+                              className={cn("w-full text-left px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-colors", cs.menuItem)}
                             >
-                              <Eye size={12} /> INSPECT
+                              <Pencil size={14} /> UBAH
                             </button>
+                            <div className={cn("h-px w-full my-1", theme === 'hacker' ? 'bg-green-900/50' : 'bg-slate-100 dark:bg-slate-800')}></div>
                             <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEdit(account.id);
-                              }}
-                              className="w-full text-left px-3 py-2 text-xs font-bold text-slate-400 hover:bg-blue-950/50 hover:text-blue-400 flex items-center gap-2"
+                              onClick={(e) => { e.stopPropagation(); setDeleteTarget(account); setOpenMenuId(null); }}
+                              className={cn("w-full text-left px-4 py-2.5 text-xs font-bold text-red-500 flex items-center gap-2 transition-colors", theme === 'hacker' ? 'hover:bg-red-950/20' : 'hover:bg-red-50 dark:hover:bg-red-950/30')}
                             >
-                              <Pencil size={12} /> MODIFY
-                            </button>
-                            <div className="h-px bg-slate-800 my-1"></div>
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteTarget(account);
-                                setOpenMenuId(null);
-                              }}
-                              className="w-full text-left px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-950/30 flex items-center gap-2"
-                            >
-                              <Trash2 size={12} /> PURGE
+                              <Trash2 size={14} /> HAPUS
                             </button>
                           </div>
                         </>
@@ -380,34 +499,36 @@ function VaultContent() {
                   </div>
                   
                   {/* Data Preview */}
-                  <div className="space-y-3">
-                    <div className="bg-slate-950/50 p-2 rounded border border-slate-800/50 group-hover:border-slate-700 transition-colors">
-                      <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
-                          <Terminal size={10} />
-                          <span className="uppercase tracking-wider text-[9px]">Identifier</span>
+                  <div className="space-y-3 mt-auto">
+                    <div className={cn("p-3 border transition-colors", theme === 'hacker' ? 'bg-black border-green-900/50 rounded-sm group-hover:border-green-700/50' : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-xl group-hover:border-slate-300 dark:group-hover:border-slate-700')}>
+                      <div className={cn("flex items-center gap-2 text-[10px] uppercase tracking-wider mb-1 font-bold", cs.textSub)}>
+                          <Terminal size={12} /> Identifier
                       </div>
-                      <p className="text-xs text-slate-300 font-mono truncate">{account.identifier}</p>
+                      <p className={cn("text-sm font-mono truncate font-medium", cs.textMain)}>{account.identifier}</p>
                     </div>
 
-                    {highlights.map(field => (
-                       <div key={field.key} className="flex justify-between text-[10px] text-slate-500 border-t border-slate-800 pt-2">
-                         <span className="uppercase">{field.label}</span>
-                         <span className="text-cyan-400 font-mono truncate max-w-[50%] text-right">
-                           {(account.details as any)[field.key]}
-                         </span>
-                       </div>
-                    ))}
-
-                    <div className="flex justify-between items-end pt-2">
-                      <span className="text-[9px] text-slate-600 font-mono flex items-center gap-1">
-                          <Clock size={8} /> {formatDate(account.lastUpdated)}
-                      </span>
-                      <span className="text-[9px] font-bold text-slate-700 group-hover:text-cyan-600 transition-colors uppercase tracking-widest">
-                          {account.owner}
-                      </span>
+                    <div className="space-y-2 pt-2 px-1">
+                      {highlights.map(field => (
+                          <HighlightField 
+                             key={field.key}
+                             field={field}
+                             value={(account.details as any)[field.key]}
+                             cs={cs}
+                             theme={theme}
+                          />
+                      ))}
                     </div>
                   </div>
+                </div>
 
+                {/* Footer Card */}
+                <div className={cn("p-4 flex justify-between items-center bg-transparent border-t", theme === 'hacker' ? 'border-green-900/30' : 'border-slate-100 dark:border-slate-800')}>
+                  <span className={cn("text-[10px] font-mono flex items-center gap-1.5 font-medium", cs.textSub)}>
+                      <Clock size={12} /> {displayDate}
+                  </span>
+                  <span className={cn("text-[10px] font-bold uppercase tracking-widest transition-colors", cs.textMain, "group-hover:text-blue-500", theme === 'hacker' && 'group-hover:text-green-500', theme === 'casual' && 'group-hover:text-orange-500')}>
+                      {account.owner || 'Vault Pribadi'}
+                  </span>
                 </div>
               </div>
             );
@@ -418,9 +539,40 @@ function VaultContent() {
   );
 }
 
+// --- SUB KOMPONEN HIGHLIGHT ---
+function HighlightField({ field, value, cs, theme }: { field: TemplateField, value: any, cs: any, theme: string }) {
+    const isSecret = field.type === 'password' || field.key.toLowerCase().includes('pin');
+    const [show, setShow] = useState(!isSecret);
+    
+    return (
+      <div className={cn("flex justify-between items-center text-xs font-medium border-t pt-2", theme === 'hacker' ? 'border-green-900/30 text-green-600' : 'border-slate-200 dark:border-slate-800 text-slate-500')}>
+        <span className="uppercase text-[10px] tracking-wider opacity-80 pr-2 truncate">{field.label}</span>
+        <div className="flex items-center gap-1.5 max-w-[60%] justify-end min-w-0">
+          <span className={cn("font-mono truncate text-right", cs.textMain)}>
+            {isSecret && !show ? "••••••••" : String(value)}
+          </span>
+          {isSecret && (
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShow(!show);
+              }}
+              className={cn("opacity-50 hover:opacity-100 transition-opacity z-10 shrink-0 pointer-events-auto cursor-pointer", theme === 'hacker' && 'hover:text-green-400', theme === 'casual' && 'hover:text-orange-500')}
+              title={show ? "Sembunyikan" : "Tampilkan"}
+            >
+              {show ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
 export default function VaultPage() {
   return (
-    <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="animate-spin text-cyan-500" size={32} /></div>}>
+    <Suspense fallback={<div className="flex justify-center py-32"><Loader2 className="animate-spin text-blue-500" size={48} /></div>}>
       <VaultContent />
     </Suspense>
   );

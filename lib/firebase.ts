@@ -1,9 +1,8 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 // Mengambil konfigurasi dari Environment Variables (.env.local)
-// Pastikan nama variabelnya diawali NEXT_PUBLIC_ agar terbaca di sisi browser
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -20,4 +19,11 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-export { app, db, auth };
+// Inisialisasi Google Auth Provider untuk Fase 1
+const googleProvider = new GoogleAuthProvider();
+// Opsional: Memaksa user memilih akun google jika punya lebih dari 1
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
+
+export { app, db, auth, googleProvider };

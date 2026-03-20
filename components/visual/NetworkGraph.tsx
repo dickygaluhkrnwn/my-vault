@@ -1,11 +1,13 @@
 "use client"
 
 import React, { useRef, useState, useMemo, useEffect } from 'react'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, Stars, Float, MeshDistortMaterial, Sparkles, Text, Billboard, QuadraticBezierLine } from '@react-three/drei'
 import { EffectComposer, Bloom, Vignette, Noise } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import { Account, AccountCategory } from '../../lib/types/schema' 
+import { useTheme, Theme } from '@/components/theme-provider'
+import { cn } from '@/lib/utils'
 
 // --- TYPES LOCAL ---
 interface ConnectedNode extends Account {
@@ -46,23 +48,23 @@ interface PhysicsLink {
     color: string;
 }
 
-// --- HELPER: WARNA KATEGORI ---
-const getCategoryColor = (category: AccountCategory | string): string => {
+// --- HELPER: WARNA KATEGORI TEMA ---
+const getCategoryColor = (category: AccountCategory | string, theme: Theme): string => {
+  const isLight = theme === 'formal' || theme === 'casual';
   switch (category) {
-    case "GAME": return "#a855f7"; 
-    case "FINANCE": return "#10b981"; 
-    case "SOCIAL": return "#3b82f6"; 
-    case "WORK": return "#f59e0b"; 
-    case "UTILITY": return "#f97316"; 
-    case "ENTERTAINMENT": return "#ec4899"; 
-    case "EDUCATION": return "#eab308"; 
-    case "ECOMMERCE": return "#f43f5e"; 
-    default: return "#6366f1"; 
+    case "GAME": return isLight ? "#9333ea" : "#a855f7"; 
+    case "FINANCE": return isLight ? "#059669" : "#10b981"; 
+    case "SOCIAL": return isLight ? "#2563eb" : "#3b82f6"; 
+    case "WORK": return isLight ? "#d97706" : "#f59e0b"; 
+    case "UTILITY": return isLight ? "#ea580c" : "#f97316"; 
+    case "ENTERTAINMENT": return isLight ? "#db2777" : "#ec4899"; 
+    case "EDUCATION": return isLight ? "#ca8a04" : "#eab308"; 
+    case "ECOMMERCE": return isLight ? "#e11d48" : "#f43f5e"; 
+    default: return isLight ? "#4f46e5" : "#6366f1"; 
   }
 };
 
 // --- HELPER: DETEKSI MOBILE (Sederhana) ---
-// Hook untuk mendeteksi ukuran layar
 function useIsMobile() {
     const [isMobile, setIsMobile] = useState(false);
     
@@ -76,9 +78,8 @@ function useIsMobile() {
     return isMobile;
 }
 
-
 // --- KOMPONEN: ORGANIC CELL (BAKTERI/NEURON) ---
-function OrganicNode({ position, color, scale = 1, label, onClick }: { position: [number, number, number], color: string, scale?: number, label?: string, onClick?: () => void }) {
+function OrganicNode({ position, color, scale = 1, label, onClick, theme }: { position: [number, number, number], color: string, scale?: number, label?: string, onClick?: () => void, theme: Theme }) {
   const meshRef = useRef<THREE.Mesh>(null!)
   const glowRef = useRef<THREE.Mesh>(null!)
   const [hovered, setHover] = useState(false)
@@ -104,6 +105,12 @@ function OrganicNode({ position, color, scale = 1, label, onClick }: { position:
       if (onClick) onClick();
   }
 
+  const textColors = {
+      formal: { default: "#334155", hover: "#2563eb", outline: "#ffffff" },
+      hacker: { default: "#e2e8f0", hover: "#22d3ee", outline: "#020617" },
+      casual: { default: "#57534e", hover: "#f97316", outline: "#fff7ed" }
+  };
+
   return (
     <group position={position} onClick={handleClick}>
       <Float speed={2} rotationIntensity={0.5} floatIntensity={1}>
@@ -115,9 +122,9 @@ function OrganicNode({ position, color, scale = 1, label, onClick }: { position:
         </mesh>
 
         {/* Sitoplasma */}
-        <Sparkles count={15} scale={finalScale * 0.8} size={3} speed={0.2} opacity={0.6} color="#ffffff" noise={1} />
+        <Sparkles count={15} scale={finalScale * 0.8} size={3} speed={0.2} opacity={0.6} color={theme === 'formal' ? "#94a3b8" : "#ffffff"} noise={1} />
 
-        {/* Membran Luar */}
+        {/* Membran Luar - Teta menggunakan MeshDistortMaterial yang ringan dan organik */}
         <mesh 
             ref={meshRef} 
             scale={hovered ? finalScale * 1.3 : finalScale}
@@ -160,13 +167,14 @@ function OrganicNode({ position, color, scale = 1, label, onClick }: { position:
                 lockX={false} lockY={false} lockZ={false}
             >
                 <Text
-                    fontSize={hovered || isMobile ? 0.4 : 0.25} // Lebih besar di mobile agar terbaca
-                    color={hovered ? "#22d3ee" : "#e2e8f0"} 
+                    fontSize={hovered || isMobile ? 0.4 : 0.25} 
+                    color={hovered ? textColors[theme].hover : textColors[theme].default} 
                     anchorX="center"
                     anchorY="bottom"
-                    outlineWidth={0.02}
-                    outlineColor="#020617" 
-                    fillOpacity={hovered || isMobile ? 1 : 0.6} // Selalu solid di mobile (no hover state)
+                    outlineWidth={theme !== 'hacker' ? 0.04 : 0.02}
+                    outlineColor={textColors[theme].outline} 
+                    fillOpacity={hovered || isMobile ? 1 : 0.8} 
+                    fontWeight={hovered ? "bold" : "normal"}
                     characters="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;':,./<>?"
                 >
                     {label}
@@ -180,7 +188,7 @@ function OrganicNode({ position, color, scale = 1, label, onClick }: { position:
 }
 
 // --- KOMPONEN: SINYAL SARAF (IMPULSE) ---
-function NeuralImpulse({ curve, color, speed }: { curve: THREE.QuadraticBezierCurve3, color: string, speed: number }) {
+function NeuralImpulse({ curve, color, speed, theme }: { curve: THREE.QuadraticBezierCurve3, color: string, speed: number, theme: Theme }) {
     const meshRef = useRef<THREE.Mesh>(null!)
     
     useFrame((state) => {
@@ -194,13 +202,18 @@ function NeuralImpulse({ curve, color, speed }: { curve: THREE.QuadraticBezierCu
     return (
         <mesh ref={meshRef}>
             <sphereGeometry args={[0.06, 8, 8]} />
-            <meshBasicMaterial color={color} toneMapped={false} transparent opacity={0.6} />
+            <meshBasicMaterial 
+              color={theme === 'formal' ? "#94a3b8" : color} 
+              toneMapped={false} 
+              transparent 
+              opacity={theme === 'formal' ? 0.8 : 0.6} 
+            />
         </mesh>
     )
 }
 
 // --- KOMPONEN: KONEKSI SINAPSA (DENDRIT) ---
-function Synapse({ start, end, color = "#ffffff" }: { start: [number, number, number], end: [number, number, number], color?: string }) {
+function Synapse({ start, end, color = "#ffffff", theme }: { start: [number, number, number], end: [number, number, number], color?: string, theme: Theme }) {
     const { curve, mid } = useMemo(() => {
         const vStart = new THREE.Vector3(...start)
         const vEnd = new THREE.Vector3(...end)
@@ -222,6 +235,7 @@ function Synapse({ start, end, color = "#ffffff" }: { start: [number, number, nu
     }, [start, end])
 
     const speed = useMemo(() => 0.2 + Math.random() * 0.5, [])
+    const lineColor = theme === 'formal' ? "#cbd5e1" : theme === 'casual' ? "#fed7aa" : color;
 
     return (
         <group>
@@ -229,18 +243,18 @@ function Synapse({ start, end, color = "#ffffff" }: { start: [number, number, nu
                 start={new THREE.Vector3(...start)}
                 end={new THREE.Vector3(...end)}
                 mid={mid}
-                color={color}
-                lineWidth={0.8} 
+                color={lineColor}
+                lineWidth={theme === 'formal' ? 1.5 : 0.8} 
                 transparent
-                opacity={0.1} 
+                opacity={theme === 'hacker' ? 0.1 : 0.4} 
             />
-            <NeuralImpulse curve={curve} color={color} speed={speed} />
+            <NeuralImpulse curve={curve} color={color} speed={speed} theme={theme} />
         </group>
     )
 }
 
 // --- SCENE UTAMA DENGAN FORCE-DIRECTED LAYOUT ---
-function Scene({ group, onNodeClick }: { group?: ConnectionGroup, onNodeClick?: (node: Account) => void }) {
+function Scene({ group, onNodeClick, theme }: { group?: ConnectionGroup, onNodeClick?: (node: Account) => void, theme: Theme }) {
   
   // ALGORITMA SIMULASI FISIKA 3D
   const { nodes, links } = useMemo(() => {
@@ -277,7 +291,7 @@ function Scene({ group, onNodeClick }: { group?: ConnectionGroup, onNodeClick?: 
             physicsLinks.push({
                 source: parentId,
                 target: child.id,
-                color: getCategoryColor(child.category)
+                color: getCategoryColor(child.category, theme)
             });
         }
     });
@@ -351,23 +365,33 @@ function Scene({ group, onNodeClick }: { group?: ConnectionGroup, onNodeClick?: 
 
     return { nodes: physicsNodes, links: physicsLinks };
 
-  }, [group]); 
+  }, [group, theme]); 
+
+  const ambientLight = theme === 'formal' ? 0.8 : theme === 'casual' ? 0.6 : 0.2;
+  const sparkleColor = theme === 'formal' ? "#94a3b8" : theme === 'casual' ? "#fb923c" : "#ffffff";
 
   return (
     <>
-      <ambientLight intensity={0.2} />
+      <ambientLight intensity={ambientLight} />
       <pointLight position={[10, 10, 10]} intensity={1} color="#4f46e5" />
       <pointLight position={[-10, -10, -10]} intensity={1} color="#ec4899" />
       <spotLight position={[0, 10, 0]} intensity={0.5} angle={0.5} penumbra={1} />
 
-      <EffectComposer>
-        <Bloom luminanceThreshold={1} mipmapBlur intensity={1.2} radius={0.5} />
-        <Noise opacity={0.04} />
-        <Vignette eskil={false} offset={0.1} darkness={1.1} />
-      </EffectComposer>
+      {/* Efek Post-Processing yang dipisah agar tidak ada error TypeScript Component Element */}
+      {theme === 'hacker' ? (
+        <EffectComposer>
+          <Bloom luminanceThreshold={1} mipmapBlur intensity={1.2} radius={0.5} />
+          <Noise opacity={0.04} />
+          <Vignette eskil={false} offset={0.1} darkness={1.1} />
+        </EffectComposer>
+      ) : (
+        <EffectComposer>
+          <Vignette eskil={false} offset={0.1} darkness={theme === 'formal' ? 0.8 : 1.1} />
+        </EffectComposer>
+      )}
 
-      <Stars radius={50} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
-      <Sparkles count={100} scale={[20, 20, 20]} size={1.5} speed={0.1} opacity={0.3} color="#ffffff" />
+      {theme === 'hacker' && <Stars radius={50} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />}
+      <Sparkles count={100} scale={[20, 20, 20]} size={1.5} speed={0.1} opacity={0.3} color={sparkleColor} />
 
       <group>
         {links.map((link, i) => {
@@ -381,6 +405,7 @@ function Scene({ group, onNodeClick }: { group?: ConnectionGroup, onNodeClick?: 
                     start={[startNode.x, startNode.y, startNode.z]} 
                     end={[endNode.x, endNode.y, endNode.z]} 
                     color={link.color} 
+                    theme={theme}
                 />
             )
         })}
@@ -390,14 +415,15 @@ function Scene({ group, onNodeClick }: { group?: ConnectionGroup, onNodeClick?: 
                 key={node.id}
                 position={[node.x, node.y, node.z]}
                 scale={node.isRoot ? 1.8 : 1.2}
-                color={getCategoryColor(node.data.category)}
+                color={getCategoryColor(node.data.category, theme)}
                 label={node.data.serviceName}
                 onClick={() => onNodeClick && onNodeClick(node.data)}
+                theme={theme}
             />
         ))}
 
         {nodes.length === 0 && (
-             <Text position={[0,0,0]} fontSize={0.5} color="white" anchorX="center" anchorY="middle">
+             <Text position={[0,0,0]} fontSize={0.5} color={theme === 'formal' ? "#64748b" : "#ffffff"} anchorX="center" anchorY="middle">
                 NO DATA CONNECTION
              </Text>
         )}
@@ -417,25 +443,46 @@ function Scene({ group, onNodeClick }: { group?: ConnectionGroup, onNodeClick?: 
 }
 
 export default function NetworkGraph({ group, onNodeClick }: NetworkGraphProps) {
+  const { theme } = useTheme();
+
   // Mobile check untuk menyesuaikan FOV camera
   const isMobile = useIsMobile();
   const fov = isMobile ? 60 : 45; // FOV lebih lebar di mobile agar node tidak terlalu "dekat" di layar kecil
   const cameraZ = isMobile ? 20 : 15; // Mundurkan kamera sedikit di mobile
 
+  const bgColors = {
+      formal: "#f8fafc", 
+      hacker: "#020617", 
+      casual: "#fff7ed"  
+  };
+
+  const containerStyles = {
+      formal: "bg-slate-50 border-slate-200 shadow-inner",
+      hacker: "bg-black border-white/10 shadow-2xl",
+      casual: "bg-orange-50 border-orange-200 shadow-inner"
+  };
+
+  const textStyles = {
+      formal: "text-slate-900",
+      hacker: "text-white",
+      casual: "text-stone-800"
+  };
+
   return (
-    <div className="w-full h-[600px] bg-black rounded-xl overflow-hidden relative border border-white/10 shadow-2xl">
+    // DIKEMBALIKAN KE H-[600PX] AGAR TIDAK MELAR!
+    <div className={cn("w-full h-[600px] rounded-xl overflow-hidden relative border transition-colors duration-500", containerStyles[theme])}>
       <Canvas camera={{ position: [0, 0, cameraZ], fov: fov }} dpr={[1, 2]}>
-        <color attach="background" args={["#020617"]} />
-        <Scene group={group} onNodeClick={onNodeClick} />
+        <color attach="background" args={[bgColors[theme]]} />
+        <Scene group={group} onNodeClick={onNodeClick} theme={theme} />
       </Canvas>
       
       <div className="absolute top-4 left-4 pointer-events-none">
-        <h3 className="text-white font-bold text-sm tracking-widest uppercase opacity-70">
+        <h3 className={cn("font-bold text-sm tracking-widest uppercase opacity-70 transition-colors", textStyles[theme])}>
           Neural Connectivity
         </h3>
         <div className="flex items-center gap-2 mt-1">
-            <span className={`w-2 h-2 rounded-full ${group ? 'bg-cyan-400 animate-pulse' : 'bg-red-500'}`}></span>
-            <p className="text-[10px] text-cyan-400 font-mono">
+            <span className={`w-2 h-2 rounded-full ${group ? (theme === 'hacker' ? 'bg-cyan-400 animate-pulse' : 'bg-blue-500 animate-pulse') : 'bg-red-500'}`}></span>
+            <p className={cn("text-[10px] font-mono transition-colors font-bold", group ? (theme === 'hacker' ? 'text-cyan-400' : 'text-blue-600') : 'text-red-500')}>
                 {group ? `LIVE DATA: ${group.children.length + 1} NODES` : 'NO SIGNAL'}
             </p>
         </div>

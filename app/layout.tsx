@@ -1,13 +1,15 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { ThemeProvider } from "@/components/theme-provider";
+import { AuthProvider } from "@/components/auth-provider"; // <-- Import AuthProvider
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Vault ID",
   description: "Secure Identity & Access Management System",
-  manifest: "/manifest.json", // Mendaftarkan file manifest
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -15,12 +17,11 @@ export const metadata: Metadata = {
   },
 };
 
-// Pengaturan Viewport terpisah (Next.js 14+)
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1, // Mencegah zoom in otomatis saat input diklik di iOS
-  themeColor: "#020617", // Warna status bar HP menyatu dengan aplikasi
+  maximumScale: 1,
+  themeColor: "#020617",
 };
 
 export default function RootLayout({
@@ -29,15 +30,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className="dark">
+    <html lang="id">
       <head>
-        {/* Menggunakan icon-192.png sebagai favicon utama agar konsisten */}
         <link rel="icon" href="/icon-192.png" />
       </head>
-      <body className={`${inter.className} bg-slate-950 text-slate-200 min-h-screen antialiased selection:bg-cyan-500/30 selection:text-cyan-200`}>
-        {/* Sidebar SUDAH DIHAPUS DARI SINI dan dipindah ke dashboard/layout.tsx */}
-        {/* Halaman ini bersih, hanya konten (Login) yang akan tampil di root */}
-        {children}
+      {/* Background dan text color akan dikendalikan otomatis oleh CSS Variables tema */}
+      <body className={`${inter.className} min-h-screen antialiased`}>
+        <ThemeProvider>
+          {/* Bungkus dengan AuthProvider untuk Proteksi Rute */}
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
