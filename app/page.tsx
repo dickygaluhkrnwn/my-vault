@@ -27,7 +27,7 @@ import type { Theme } from "@/components/theme-provider";
 
 export default function Home() {
   const router = useRouter();
-  const { theme } = useTheme(); 
+  const { theme } = useTheme() as { theme: Theme }; 
   
   // States untuk Auth
   const [isLoading, setIsLoading] = useState<"google" | "guest" | "email" | null>(null);
@@ -139,7 +139,75 @@ export default function Home() {
     }
   };
 
+  // --- DICTIONARY TEKS DINAMIS ---
+  const textDict = {
+    formal: {
+      heroTitle1: "Kendalikan Keamanan",
+      heroTitle2: "Identitas Digitalmu.",
+      heroSub: "Sistem manajemen kata sandi cerdas dengan enkripsi Zero-Knowledge, pemantauan kebocoran data, dan fitur pewarisan akses otomatis.",
+      feat1: "Enkripsi Client-Side (Zero-Knowledge)",
+      feat2: "Keamanan Tanpa Jejak Server",
+      feat3: "Visualisasi Jaringan Akun & Relasi",
+      authTitleLogin: "Selamat Datang Kembali",
+      authTitleReg: "Buat Akun Baru",
+      authSubLogin: "Masuk untuk mengakses brankas Anda.",
+      authSubReg: "Mulai amankan identitas digital Anda.",
+      phEmail: "Alamat Email",
+      phPass: "Kata Sandi",
+      btnLogin: "Masuk",
+      btnReg: "Daftar Sekarang",
+      toggleToReg: "Belum punya akun? Daftar gratis",
+      toggleToLogin: "Sudah punya akun? Masuk di sini",
+      separator: "Atau lanjutkan dengan",
+      btnGoogle: "Google",
+      btnGuest: "Coba Mode Tamu",
+    },
+    casual: {
+      heroTitle1: "Amanin Semua",
+      heroTitle2: "Akun Digital Kamu.",
+      heroSub: "Simpan password tanpa was-was. Dilengkapi enkripsi canggih, cek data bocor otomatis, dan fitur warisan akun buat keluarga.",
+      feat1: "Enkripsi Super Aman (Zero-Knowledge)",
+      feat2: "Privasi Dijamin 100% Anti Ngintip",
+      feat3: "Lihat Jalur Koneksi Akun & Keluarga",
+      authTitleLogin: "Halo, Ketemu Lagi!",
+      authTitleReg: "Bikin Akun Gratis",
+      authSubLogin: "Yuk masuk buat buka brankas kamu.",
+      authSubReg: "Mulai amanin data digital kamu sekarang.",
+      phEmail: "Email kamu",
+      phPass: "Password",
+      btnLogin: "Masuk",
+      btnReg: "Daftar Sekarang",
+      toggleToReg: "Belum punya akun? Daftar dulu yuk",
+      toggleToLogin: "Udah punya akun? Masuk di sini",
+      separator: "Atau pakai cara cepat",
+      btnGoogle: "Google",
+      btnGuest: "Cobain Mode Tamu",
+    },
+    hacker: {
+      heroTitle1: "SECURE YOUR",
+      heroTitle2: "DIGITAL FOOTPRINT.",
+      heroSub: "ADVANCED CIPHER MANAGEMENT. ZERO-KNOWLEDGE PROTOCOL. REAL-TIME BREACH MONITORING AND DEAD-MAN'S SWITCH AUTOMATION.",
+      feat1: "CLIENT-SIDE_ENCRYPTION(AES-256)",
+      feat2: "ZERO_SERVER_LOGS_PROTOCOL",
+      feat3: "3D_NEURAL_ACCOUNT_TOPOLOGY",
+      authTitleLogin: "INITIATE_HANDSHAKE",
+      authTitleReg: "CREATE_NEW_ENTITY",
+      authSubLogin: "AUTHENTICATE TO ACCESS ENCRYPTED VAULT.",
+      authSubReg: "REGISTER NEW IDENTITY IN THE SYSTEM.",
+      phEmail: "TARGET_EMAIL_ADDRESS",
+      phPass: "INPUT_SECRET_KEY",
+      btnLogin: "AUTHENTICATE",
+      btnReg: "INITIALIZE_ENTITY",
+      toggleToReg: "NO_ENTITY_FOUND? INITIATE_REGISTRATION",
+      toggleToLogin: "ENTITY_EXISTS? INITIATE_HANDSHAKE",
+      separator: "ALTERNATIVE_AUTH_PROTOCOLS",
+      btnGoogle: "OAUTH: GOOGLE",
+      btnGuest: "BYPASS: GUEST_MODE",
+    }
+  };
+
   const currentStyle = styles[theme];
+  const t = textDict[theme];
 
   return (
     <div className={cn("min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden transition-colors duration-500", currentStyle.wrapper)}>
@@ -162,20 +230,20 @@ export default function Home() {
           </div>
           
           <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.15]">
-            Kendalikan Keamanan <br className="hidden lg:block" />
+            {t.heroTitle1} <br className="hidden lg:block" />
             <span className={cn("transition-colors duration-500", currentStyle.highlightText)}>
-              Identitas Digitalmu.
+              {t.heroTitle2}
             </span>
           </h2>
           
           <p className="text-base lg:text-lg opacity-80 max-w-lg mx-auto lg:mx-0 leading-relaxed mt-2">
-            Sistem manajemen kata sandi cerdas dengan enkripsi Zero-Knowledge, pemantauan kebocoran data, dan fitur pewarisan akses otomatis.
+            {t.heroSub}
           </p>
 
           <div className="hidden lg:flex flex-col gap-4 mt-6">
-            <FeatureItem icon={<LockKeyhole size={20} />} text="Enkripsi Client-Side (Zero-Knowledge)" theme={theme} />
-            <FeatureItem icon={<Fingerprint size={20} />} text="Keamanan Tanpa Jejak Server" theme={theme} />
-            <FeatureItem icon={<Network size={20} />} text="Visualisasi Jaringan Akun & Keluarga" theme={theme} />
+            <FeatureItem icon={<LockKeyhole size={20} />} text={t.feat1} theme={theme} />
+            <FeatureItem icon={<Fingerprint size={20} />} text={t.feat2} theme={theme} />
+            <FeatureItem icon={<Network size={20} />} text={t.feat3} theme={theme} />
           </div>
         </div>
 
@@ -185,10 +253,10 @@ export default function Home() {
             
             <div className="text-center mb-6">
               <h3 className="text-2xl font-bold mb-2">
-                {isLoginMode ? "Selamat Datang Kembali" : "Buat Akun Baru"}
+                {isLoginMode ? t.authTitleLogin : t.authTitleReg}
               </h3>
               <p className="text-sm opacity-70">
-                {isLoginMode ? "Masuk untuk mengakses brankas Anda." : "Mulai amankan identitas digital Anda."}
+                {isLoginMode ? t.authSubLogin : t.authSubReg}
               </p>
             </div>
 
@@ -209,7 +277,7 @@ export default function Home() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Alamat Email"
+                  placeholder={t.phEmail}
                   required
                   className={cn("w-full pl-11 pr-4 py-3 transition-all text-sm border", currentStyle.input)}
                 />
@@ -223,7 +291,7 @@ export default function Home() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Kata Sandi"
+                  placeholder={t.phPass}
                   required
                   className={cn("w-full pl-11 pr-12 py-3 transition-all text-sm tracking-wide border", currentStyle.input)}
                 />
@@ -244,9 +312,9 @@ export default function Home() {
                 {isLoading === "email" ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : isLoginMode ? (
-                  "Masuk"
+                  t.btnLogin
                 ) : (
-                  "Daftar Sekarang"
+                  t.btnReg
                 )}
               </button>
             </form>
@@ -259,15 +327,13 @@ export default function Home() {
                 }}
                 className="text-sm font-medium opacity-70 hover:opacity-100 transition-opacity"
               >
-                {isLoginMode 
-                  ? "Belum punya akun? Daftar gratis" 
-                  : "Sudah punya akun? Masuk di sini"}
+                {isLoginMode ? t.toggleToReg : t.toggleToLogin}
               </button>
             </div>
 
             <div className="relative flex items-center py-2 mb-6">
               <div className="flex-grow border-t border-inherit opacity-20"></div>
-              <span className="flex-shrink-0 mx-4 opacity-50 text-xs font-medium uppercase tracking-wider">Atau lanjutkan dengan</span>
+              <span className="flex-shrink-0 mx-4 opacity-50 text-xs font-medium uppercase tracking-wider">{t.separator}</span>
               <div className="flex-grow border-t border-inherit opacity-20"></div>
             </div>
 
@@ -281,14 +347,14 @@ export default function Home() {
                 {isLoading === "google" ? (
                   <Loader2 className="w-5 h-5 animate-spin opacity-50" />
                 ) : (
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                   </svg>
                 )}
-                <span>Google</span>
+                <span>{t.btnGoogle}</span>
               </button>
 
               {/* Guest Mode Button */}
@@ -300,9 +366,9 @@ export default function Home() {
                 {isLoading === "guest" ? (
                   <Loader2 className="w-5 h-5 animate-spin opacity-50" />
                 ) : (
-                  <Compass className="w-5 h-5 opacity-60 group-hover:opacity-100 transition-opacity" />
+                  <Compass className="w-5 h-5 opacity-60 group-hover:opacity-100 transition-opacity shrink-0" />
                 )}
-                <span>Coba Mode Tamu</span>
+                <span>{t.btnGuest}</span>
               </button>
             </div>
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo } from "react";
+import { useState, useEffect, Suspense, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
@@ -38,6 +38,37 @@ const getCategoryIcon = (category: AccountCategory | string) => {
     default: return <MoreHorizontal size={20} className="text-slate-400" />;
   }
 };
+
+// --- SMART FAVICON COMPONENT ---
+function AccountIcon({ account }: { account: Account }) {
+  const [error, setError] = useState(false);
+  
+  const cleanDomain = (url: string) => {
+    if (!url) return "";
+    try {
+      const parsed = new URL(url.includes('http') ? url : `https://${url}`);
+      return parsed.hostname;
+    } catch {
+      return url.split('/')[0];
+    }
+  };
+
+  const domain = cleanDomain((account as any).websiteUrl || "");
+  const iconUrl = domain ? `https://s2.googleusercontent.com/s2/favicons?domain=${domain}&sz=128` : "";
+
+  if (iconUrl && !error) {
+    return (
+      <img 
+        src={iconUrl} 
+        alt={account.serviceName} 
+        className="w-5 h-5 object-contain"
+        onError={() => setError(true)}
+      />
+    );
+  }
+
+  return getCategoryIcon(account.category);
+}
 
 const CATEGORIES: { label: string; value: AccountCategory | "ALL" }[] = [
   { label: "ALL DATA", value: "ALL" },
@@ -266,7 +297,54 @@ function VaultContent() {
     }
   };
 
+  // --- DICTIONARY TEKS DINAMIS ---
+  const textDict = {
+    formal: {
+      headerTitle: "Data Vault",
+      headerSub: "Kelola dan amankan semua kredensial digital Anda.",
+      btnNew: "Tambah Data",
+      globalSpace: "GLOBAL",
+      allData: "Semua Data",
+      searchPh: (space: string) => `Saring data di ${space === 'ALL' ? 'Semua Data' : space}...`,
+      sort: "Urutkan",
+      status: "Status",
+      emptyTitle: (space: string) => `Tidak ada data${space !== 'ALL' ? ` di ${space}` : ''}`,
+      emptySub: (space: string) => `Brankas ${space !== 'ALL' ? space : 'Anda'} masih kosong. Tambahkan kredensial untuk memulainya.`,
+      btnInit: "Tambah Data Sekarang",
+      decrypting: "DECRYPTING_VAULT..."
+    },
+    casual: {
+      headerTitle: "Brankas Pintar",
+      headerSub: "Simpan dan atur semua info login kamu di sini dengan aman.",
+      btnNew: "Tambah Akun",
+      globalSpace: "SEMUA",
+      allData: "Semua Akun",
+      searchPh: (space: string) => `Cari data di ${space === 'ALL' ? 'Semua Akun' : space}...`,
+      sort: "Urutkan",
+      status: "Status",
+      emptyTitle: (space: string) => `Kosong melompong${space !== 'ALL' ? ` di ${space}` : ''} 😅`,
+      emptySub: (space: string) => `Belum ada data di ${space !== 'ALL' ? space : 'sini'}. Yuk, mulai tambahin info login kamu!`,
+      btnInit: "Tambah Akun Sekarang",
+      decrypting: "Membuka brankas..."
+    },
+    hacker: {
+      headerTitle: "DATABASE_VAULT",
+      headerSub: "SECURE STORAGE // ENCRYPTED NODES",
+      btnNew: "NEW_ENTRY",
+      globalSpace: "GLOBAL_ROOT",
+      allData: "ALL_NODES",
+      searchPh: (space: string) => `SEARCH_IN [${space}]...`,
+      sort: "SORT_BY",
+      status: "FILTER_STATUS",
+      emptyTitle: (space: string) => `NULL_POINTER_EXCEPTION: NO_DATA_IN_${space}`,
+      emptySub: (space: string) => `DATA_NOT_FOUND. INITIATE NEW ENTRY TO POPULATE ${space === 'ALL' ? 'VAULT' : space.toUpperCase()}.`,
+      btnInit: "+ INIT_ENTRY",
+      decrypting: "DECRYPTING_NODES..."
+    }
+  };
+
   const cs = styles[theme];
+  const t = textDict[theme];
 
   return (
     <div className={cn("min-h-[85vh] relative flex flex-col gap-6 animate-in fade-in duration-500 pb-20", cs.wrapper)}>
@@ -316,10 +394,10 @@ function VaultContent() {
           </div>
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold tracking-tight flex items-center gap-2">
-              {theme === 'hacker' ? 'DATABASE_VAULT' : 'Data Vault'}
+              {t.headerTitle}
             </h1>
             <p className={cn("text-xs lg:text-sm mt-1 font-medium", cs.textSub, theme === 'hacker' && 'tracking-widest uppercase font-mono')}>
-              {theme === 'hacker' ? 'SECURE STORAGE // ENCRYPTED NODES' : 'Kelola dan amankan semua kredensial digital Anda.'}
+              {t.headerSub}
             </p>
           </div>
         </div>
@@ -328,7 +406,7 @@ function VaultContent() {
           className={cn("flex items-center gap-2 px-5 py-2.5 transition-all text-sm font-bold tracking-wider group w-full md:w-auto justify-center", cs.btnPrimary, theme !== 'casual' && theme !== 'hacker' && 'rounded-xl')}
         >
           <Plus size={18} className="group-hover:rotate-90 transition-transform" />
-          {theme === 'hacker' ? 'NEW_ENTRY' : 'Tambah Data'}
+          {t.btnNew}
         </Link>
       </div>
 
@@ -353,11 +431,11 @@ function VaultContent() {
                         <Database size={18} className={activeSpace === "ALL" ? cs.accent : cs.textSub} />
                     </div>
                     <span className={cn("text-[9px] font-bold px-2 py-0.5 border rounded uppercase tracking-wider", activeSpace === "ALL" ? (theme === 'hacker' ? 'bg-black text-green-500 border-green-500/50' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800') : (theme === 'hacker' ? 'bg-black text-green-700 border-green-900/50' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'))}>
-                        GLOBAL
+                        {t.globalSpace}
                     </span>
                 </div>
                 <div>
-                    <h3 className={cn("font-bold text-sm truncate", activeSpace === "ALL" ? cs.textMain : cs.textSub)}>Semua Data</h3>
+                    <h3 className={cn("font-bold text-sm truncate", activeSpace === "ALL" ? cs.textMain : cs.textSub)}>{t.allData}</h3>
                     <p className={cn("text-[10px] font-mono mt-0.5", activeSpace === "ALL" ? cs.textMain : cs.textSub)}>{accounts.length} ASSETS</p>
                 </div>
                 <div className={cn("mt-2 h-1 w-full rounded-full overflow-hidden", theme === 'hacker' ? 'bg-green-950' : 'bg-slate-200 dark:bg-slate-800')}>
@@ -413,7 +491,7 @@ function VaultContent() {
                 </div>
                 <input 
                     type="text" 
-                    placeholder={theme === 'hacker' ? `Search in ${activeSpace}...` : `Saring data di ${activeSpace === 'ALL' ? 'Semua Data' : activeSpace}...`} 
+                    placeholder={t.searchPh(activeSpace)} 
                     className={cn("w-full border py-2.5 pl-10 pr-4 outline-none transition-all text-sm", cs.input, theme !== 'hacker' ? 'rounded-xl' : 'rounded-sm', theme === 'hacker' && 'font-mono')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -432,7 +510,7 @@ function VaultContent() {
                         }}
                         className={cn("w-full lg:w-auto px-4 py-2.5 flex items-center justify-between lg:justify-center gap-2 text-sm font-bold border transition-colors", cs.btnOutline)}
                     >
-                        <span className="flex items-center gap-2"><ArrowUpDown size={16} /> <span className="hidden sm:inline">Urutkan</span></span>
+                        <span className="flex items-center gap-2"><ArrowUpDown size={16} /> <span className="hidden sm:inline">{t.sort}</span></span>
                     </button>
 
                     {/* Dropdown Urutkan */}
@@ -468,7 +546,7 @@ function VaultContent() {
                     >
                         <span className="flex items-center gap-2">
                           <Filter size={16} className={filterStatus !== 'ALL' ? cs.accent : ''} /> 
-                          <span className="hidden sm:inline">Status</span>
+                          <span className="hidden sm:inline">{t.status}</span>
                         </span>
                         {filterStatus !== 'ALL' && <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />}
                     </button>
@@ -518,7 +596,7 @@ function VaultContent() {
       {loading ? (
         <div className={cn("flex flex-col items-center justify-center py-32 gap-4", cs.accent)}>
           <Loader2 className="animate-spin" size={48} />
-          <p className="text-sm tracking-[0.2em] animate-pulse font-mono font-bold">DECRYPTING_VAULT...</p>
+          <p className="text-sm tracking-[0.2em] animate-pulse font-mono font-bold">{t.decrypting}</p>
         </div>
       ) : processedAccounts.length === 0 ? (
         <div className={cn("text-center py-24 border border-dashed rounded-2xl flex flex-col items-center justify-center", theme === 'hacker' ? 'border-green-900/50 bg-[#050505]' : 'border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm')}>
@@ -526,16 +604,16 @@ function VaultContent() {
             {activeSpace !== 'ALL' ? <Key size={40} strokeWidth={1.5} /> : <Database size={40} strokeWidth={1.5} />}
           </div>
           <h3 className={cn("font-bold text-lg tracking-wide", cs.textMain)}>
-            {theme === 'hacker' ? 'NO_DATA_FOUND' : `Tidak ada data${activeSpace !== 'ALL' ? ` di ${activeSpace}` : ''}`}
+            {t.emptyTitle(activeSpace)}
           </h3>
           <p className={cn("text-sm mt-2 max-w-sm px-4", cs.textSub)}>
             {searchQuery || filterStatus !== 'ALL' || selectedCategory !== 'ALL'
               ? `Tidak ada data yang cocok dengan kriteria filter saat ini.` 
-              : `Brankas ${activeSpace !== 'ALL' ? activeSpace : 'Anda'} masih kosong. Tambahkan kredensial untuk memulainya.`}
+              : t.emptySub(activeSpace)}
           </p>
           {(!searchQuery && filterStatus === 'ALL' && selectedCategory === 'ALL') && (
             <Link href="/dashboard/vault/create" className={cn("mt-6 px-6 py-2.5 text-sm font-bold transition-all", cs.btnPrimary, theme !== 'casual' && theme !== 'hacker' && 'rounded-lg')}>
-               {theme === 'hacker' ? '+ INIT_ENTRY' : 'Tambah Data Sekarang'}
+               {t.btnInit}
             </Link>
           )}
         </div>
@@ -564,8 +642,8 @@ function VaultContent() {
                   {/* Header Card */}
                   <div className="flex justify-between items-start mb-5">
                     <div className="flex items-center gap-3 overflow-hidden">
-                      <div className={cn("p-3 border rounded-xl shrink-0 transition-colors shadow-sm", theme === 'hacker' ? 'bg-black border-green-900/50 group-hover:border-green-500/50 rounded-sm' : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 group-hover:border-blue-500/30')}>
-                        {getCategoryIcon(account.category)}
+                      <div className={cn("p-3 w-[46px] h-[46px] border flex items-center justify-center shrink-0 transition-colors shadow-sm", theme === 'hacker' ? 'bg-black border-green-900/50 group-hover:border-green-500/50 rounded-sm' : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 group-hover:border-blue-500/30 rounded-xl')}>
+                        <AccountIcon account={account} />
                       </div>
                       <div className="overflow-hidden">
                         <h3 className={cn("font-bold text-base line-clamp-1 transition-colors", cs.textMain, "group-hover:text-blue-500", theme === 'hacker' && 'group-hover:text-green-400', theme === 'casual' && 'group-hover:text-orange-500')}>{account.serviceName}</h3>

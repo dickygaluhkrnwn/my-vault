@@ -45,19 +45,50 @@ export interface ConnectionGroup {
   children: ConnectedNode[];
 }
 
-const getCategoryIcon = (category: AccountCategory | string) => {
+const getCategoryIcon = (category: AccountCategory | string, size: number = 16) => {
     switch (category) {
-      case "GAME": return <Gamepad2 size={16} className="text-purple-500 dark:text-purple-400" />;
-      case "FINANCE": return <Wallet size={16} className="text-emerald-500 dark:text-emerald-400" />;
-      case "SOCIAL": return <Share2 size={16} className="text-blue-500 dark:text-blue-400" />;
-      case "WORK": return <Briefcase size={16} className="text-amber-500 dark:text-amber-400" />;
-      case "UTILITY": return <Mail size={16} className="text-orange-500 dark:text-orange-400" />;
-      case "ENTERTAINMENT": return <Music size={16} className="text-pink-500 dark:text-pink-400" />;
-      case "EDUCATION": return <GraduationCap size={16} className="text-yellow-500 dark:text-yellow-400" />;
-      case "ECOMMERCE": return <ShoppingBag size={16} className="text-rose-500 dark:text-rose-400" />;
-      default: return <MoreHorizontal size={16} className="text-slate-400" />;
+      case "GAME": return <Gamepad2 size={size} className="text-purple-500 dark:text-purple-400" />;
+      case "FINANCE": return <Wallet size={size} className="text-emerald-500 dark:text-emerald-400" />;
+      case "SOCIAL": return <Share2 size={size} className="text-blue-500 dark:text-blue-400" />;
+      case "WORK": return <Briefcase size={size} className="text-amber-500 dark:text-amber-400" />;
+      case "UTILITY": return <Mail size={size} className="text-orange-500 dark:text-orange-400" />;
+      case "ENTERTAINMENT": return <Music size={size} className="text-pink-500 dark:text-pink-400" />;
+      case "EDUCATION": return <GraduationCap size={size} className="text-yellow-500 dark:text-yellow-400" />;
+      case "ECOMMERCE": return <ShoppingBag size={size} className="text-rose-500 dark:text-rose-400" />;
+      default: return <MoreHorizontal size={size} className="text-slate-400" />;
     }
 };
+
+// --- SMART FAVICON COMPONENT ---
+function AccountIcon({ account, size = 16, sizeClass = "w-4 h-4" }: { account: Account, size?: number, sizeClass?: string }) {
+  const [error, setError] = useState(false);
+  
+  const cleanDomain = (url: string) => {
+    if (!url) return "";
+    try {
+      const parsed = new URL(url.includes('http') ? url : `https://${url}`);
+      return parsed.hostname;
+    } catch {
+      return url.split('/')[0];
+    }
+  };
+
+  const domain = cleanDomain((account as any).websiteUrl || "");
+  const iconUrl = domain ? `https://s2.googleusercontent.com/s2/favicons?domain=${domain}&sz=128` : "";
+
+  if (iconUrl && !error) {
+    return (
+      <img 
+        src={iconUrl} 
+        alt={account.serviceName} 
+        className={cn("object-contain", sizeClass)}
+        onError={() => setError(true)}
+      />
+    );
+  }
+
+  return getCategoryIcon(account.category, size);
+}
 
 export default function ConnectivityPage() {
   const router = useRouter();
@@ -283,6 +314,7 @@ export default function ConnectivityPage() {
 
   const activeGroup = groups.find(g => g.parentId === selectedParentId);
 
+  // --- PEMETAAN STYLE TEMA DINAMIS ---
   const styles = {
     formal: {
       wrapper: "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100",
@@ -325,14 +357,73 @@ export default function ConnectivityPage() {
     }
   };
 
+  // --- DICTIONARY TEKS DINAMIS ---
+  const textDict = {
+    formal: {
+        loadingInit: "Memindai Jaringan...",
+        loadingTrace: "> Melacak jalur koneksi...",
+        loadingResolve: "> Membangun peta identitas...",
+        title: "Peta Jaringan Akun",
+        subtitle: "Visualisasi interkoneksi identitas digital Anda",
+        badge: "v5.0 3D",
+        clusters: "KLASTER",
+        listTitle: "Daftar Klaster",
+        searchPh: "Cari klaster...",
+        noMatch: "TIDAK ADA HASIL",
+        nodes: "TERHUBUNG",
+        parentNode: "Akun Utama (Root)",
+        lblNodes: "Node",
+        lblStatus: "Status",
+        subsystems: "Sub-Akun Terhubung",
+        noLinked: "TIDAK ADA DATA TERHUBUNG"
+    },
+    casual: {
+        loadingInit: "Mengecek Koneksi...",
+        loadingTrace: "> Menghubungkan akun...",
+        loadingResolve: "> Merapikan tampilan...",
+        title: "Peta Jaringan",
+        subtitle: "Lihat gimana akun-akun kamu saling terhubung",
+        badge: "Graph 3D",
+        clusters: "KUMPULAN",
+        listTitle: "Daftar Akun Utama",
+        searchPh: "Cari akun...",
+        noMatch: "GAK KETEMU",
+        nodes: "NYAMBUNG",
+        parentNode: "Akun Utama",
+        lblNodes: "Total",
+        lblStatus: "Status",
+        subsystems: "Akun yang Nyambung",
+        noLinked: "GAK ADA AKUN LAIN"
+    },
+    hacker: {
+        loadingInit: "SYSTEM_INIT",
+        loadingTrace: "> Tracing neural pathways...",
+        loadingResolve: "> Resolving identity chains...",
+        title: "NEURAL_NET",
+        subtitle: "ORGANIC TOPOLOGY ACTIVE",
+        badge: "v5.0 3D",
+        clusters: "CLUSTERS",
+        listTitle: "Identity Clusters",
+        searchPh: "Find cluster...",
+        noMatch: "NO_MATCH_FOUND",
+        nodes: "NODES",
+        parentNode: "PARENT_NODE",
+        lblNodes: "NODES",
+        lblStatus: "STATUS",
+        subsystems: "CONNECTED_SUBSYSTEMS",
+        noLinked: "NO_LINKED_DATA"
+    }
+  };
+
   const cs = styles[theme];
+  const t = textDict[theme];
 
   if (loading) {
     return (
       <div className={cn("flex flex-col items-center justify-center h-[80vh] font-mono", theme === 'hacker' ? 'text-green-500' : 'text-slate-800 dark:text-slate-200')}>
         <div className="w-96 space-y-4">
             <div className={cn("flex justify-between text-xs mb-1", cs.accentText)}>
-                <span>{theme === 'hacker' ? 'SYSTEM_INIT' : 'Memindai Jaringan...'}</span>
+                <span>{t.loadingInit}</span>
                 <span>{scanProgress}%</span>
             </div>
             <div className={cn("h-1 w-full rounded-full overflow-hidden", theme === 'hacker' ? 'bg-green-950' : 'bg-slate-200 dark:bg-slate-800')}>
@@ -342,8 +433,8 @@ export default function ConnectivityPage() {
                 />
             </div>
             <div className={cn("text-xs space-y-1", cs.subText)}>
-                <p>{'>'} Tracing neural pathways...</p>
-                <p>{'>'} Resolving identity chains...</p>
+                <p>{t.loadingTrace}</p>
+                <p>{t.loadingResolve}</p>
             </div>
         </div>
       </div>
@@ -362,13 +453,13 @@ export default function ConnectivityPage() {
             </div>
             <div>
                 <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-                    {theme === 'hacker' ? 'NEURAL_NET' : 'Peta Jaringan Akun'} 
+                    {t.title} 
                     <span className={cn("text-xs px-2 py-0.5 border rounded-md font-bold", cs.badge)}>
-                        {isGuest ? 'GUEST DATA' : 'v5.0 3D'}
+                        {isGuest ? 'GUEST DATA' : t.badge}
                     </span>
                 </h1>
                 <p className={cn("text-xs mt-1", cs.subText)}>
-                  {theme === 'hacker' ? 'ORGANIC TOPOLOGY ACTIVE' : 'Visualisasi interkoneksi identitas digitalmu'}
+                  {t.subtitle}
                 </p>
             </div>
         </div>
@@ -393,7 +484,7 @@ export default function ConnectivityPage() {
         <div className="hidden lg:flex gap-4 text-xs">
             <div className={cn("flex items-center gap-2 px-3 py-1.5 border font-bold", cs.panel, theme !== 'casual' && 'rounded-md')}>
                 <Wifi size={14} className={cs.accentText} />
-                <span className={cs.subText}>{groups.length} KLASTER</span>
+                <span className={cs.subText}>{groups.length} {t.clusters}</span>
             </div>
         </div>
       </div>
@@ -411,12 +502,12 @@ export default function ConnectivityPage() {
                 <div className="flex flex-col gap-3 mb-3 shrink-0">
                     <div className={cn("flex items-center gap-2 text-xs font-bold uppercase tracking-wider", cs.subText)}>
                         <Search size={14} />
-                        {theme === 'hacker' ? 'Identity Clusters' : 'Daftar Klaster'}
+                        {t.listTitle}
                     </div>
                     <div className="relative">
                         <input 
                             type="text" 
-                            placeholder={theme === 'hacker' ? "Find cluster..." : "Cari klaster..."}
+                            placeholder={t.searchPh}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className={cn("w-full border px-3 py-2 text-sm focus:outline-none transition-colors", cs.input, theme !== 'casual' && 'rounded')}
@@ -436,7 +527,7 @@ export default function ConnectivityPage() {
                     {filteredGroups.length === 0 ? (
                         <div className={cn("text-xs text-center py-8 border border-dashed flex flex-col items-center gap-2", cs.subText, cs.listItem, theme !== 'casual' && 'rounded')}>
                             <Shield size={24} className="opacity-20" />
-                            NO_MATCH_FOUND
+                            {t.noMatch}
                         </div>
                     ) : filteredGroups.map((group) => (
                         <button
@@ -462,7 +553,7 @@ export default function ConnectivityPage() {
                                 )}
                                 <p className={cn("text-[10px] mt-1 flex items-center gap-1 opacity-70", cs.subText)}>
                                     <GitBranch size={10} />
-                                    {group.children.length} {theme === 'hacker' ? 'NODES' : 'TERHUBUNG'}
+                                    {group.children.length} {t.nodes}
                                 </p>
                             </div>
                             {selectedParentId === group.parentId ? (
@@ -496,11 +587,11 @@ export default function ConnectivityPage() {
                     <div className={cn("p-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0", theme === 'hacker' ? 'bg-black/30 border-green-900/50' : 'bg-slate-50/50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800')}>
                         <div className="flex items-center gap-3">
                             <div className={cn("p-2.5 rounded-lg border shrink-0", cs.headerIcon)}>
-                                {activeGroup.rootAccount ? getCategoryIcon(activeGroup.rootAccount.category) : <Network size={20} className={cs.accentText} />}
+                                {activeGroup.rootAccount ? <AccountIcon account={activeGroup.rootAccount} size={20} sizeClass="w-5 h-5" /> : <Network size={20} className={cs.accentText} />}
                             </div>
                             <div>
                                 <p className={cn("text-[10px] font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1", cs.accentText)}>
-                                    <GitBranch size={12} /> {theme === 'hacker' ? 'PARENT_NODE' : 'Akun Utama (Root)'}
+                                    <GitBranch size={12} /> {t.parentNode}
                                 </p>
                                 <h4 className={cn("text-sm font-bold", cs.textMain)}>
                                     {activeGroup.rootAccount ? activeGroup.rootAccount.serviceName : activeGroup.parentId}
@@ -512,11 +603,11 @@ export default function ConnectivityPage() {
                         </div>
                         <div className={cn("flex items-center gap-3 text-right shrink-0", cs.subText)}>
                             <div className={cn("px-3 py-1.5 rounded border flex flex-col items-center justify-center", theme === 'hacker' ? 'bg-black/50 border-green-900/30' : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800')}>
-                                <span className="text-[9px] font-bold uppercase tracking-wider">Nodes</span>
+                                <span className="text-[9px] font-bold uppercase tracking-wider">{t.lblNodes}</span>
                                 <span className={cn("text-xs font-bold font-mono", cs.textMain)}>{activeGroup.children.length}</span>
                             </div>
                             <div className={cn("px-3 py-1.5 rounded border flex flex-col items-center justify-center", theme === 'hacker' ? 'bg-black/50 border-green-900/30' : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800')}>
-                                <span className="text-[9px] font-bold uppercase tracking-wider">Status</span>
+                                <span className="text-[9px] font-bold uppercase tracking-wider">{t.lblStatus}</span>
                                 <span className={cn("text-xs font-bold font-mono", activeGroup.rootAccount?.status === 'ACTIVE' ? 'text-emerald-500' : 'text-red-500')}>
                                     {activeGroup.rootAccount?.status === 'ACTIVE' ? 'SECURE' : (activeGroup.rootAccount?.status || 'UNKNOWN')}
                                 </span>
@@ -529,7 +620,7 @@ export default function ConnectivityPage() {
                 <div className={cn("px-4 py-3 border-b flex items-center justify-between shrink-0", theme === 'hacker' ? 'border-green-900/50 bg-[#020202]' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950')}>
                     <h3 className={cn("text-[10px] font-bold uppercase tracking-wider flex items-center gap-2", cs.subText)}>
                         <LinkIcon size={12} className={cs.accentText} />
-                        {theme === 'hacker' ? 'CONNECTED_SUBSYSTEMS' : 'Sub-Akun Terhubung'}
+                        {t.subsystems}
                     </h3>
                 </div>
                 
@@ -537,7 +628,7 @@ export default function ConnectivityPage() {
                 <div className={cn("flex-1 overflow-y-auto p-3 space-y-2 min-h-0", cs.scrollbar)}>
                     {(!activeGroup || activeGroup.children.length === 0) ? (
                         <div className="h-full flex flex-col items-center justify-center opacity-50 text-xs font-mono gap-2 min-h-[150px]">
-                            <Shield size={24} /> NO_LINKED_DATA
+                            <Shield size={24} /> {t.noLinked}
                         </div>
                     ) : (
                         activeGroup.children.map(child => (
@@ -547,11 +638,11 @@ export default function ConnectivityPage() {
                               className={cn("flex items-center justify-between p-3 border cursor-pointer transition-all group", cs.listItem, theme !== 'casual' && 'rounded-lg')}
                             >
                                 <div className="flex items-center gap-3 overflow-hidden">
-                                    <div className={cn("p-2 rounded-lg border transition-colors shrink-0", cs.headerIcon)}>
-                                        {getCategoryIcon(child.category)}
+                                    <div className={cn("p-2.5 rounded-lg border transition-colors shrink-0", theme === 'hacker' ? 'bg-black border-green-900/50 group-hover:border-purple-500/30' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 group-hover:border-purple-200 dark:group-hover:border-purple-900/50')}>
+                                        <AccountIcon account={child} size={16} sizeClass="w-4 h-4" />
                                     </div>
                                     <div className="overflow-hidden">
-                                        <p className={cn("font-bold text-sm truncate transition-colors", cs.textMain, "group-hover:text-blue-500", theme==='hacker'&&'group-hover:text-green-500', theme==='casual'&&'group-hover:text-orange-500')}>{child.serviceName}</p>
+                                        <p className={cn("font-bold text-sm truncate transition-colors", cs.textMain, "group-hover:text-purple-500")}>{child.serviceName}</p>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className={cn("text-[10px] font-mono truncate", cs.subText)}>{child.identifier}</span>
                                             <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase font-mono", theme === 'hacker' ? 'bg-black text-green-600 border-green-900/50' : 'bg-slate-100 dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800')}>{child.category}</span>

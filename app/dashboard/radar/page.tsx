@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { collection, query, onSnapshot, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Account } from "@/lib/types/schema";
-import { useTheme } from "@/components/theme-provider";
+import { useTheme, Theme } from "@/components/theme-provider";
 import { useAuth } from "@/components/auth-provider";
 import { useRouter } from "next/navigation";
 import { 
@@ -17,7 +17,6 @@ import { cn } from "@/lib/utils";
 import { Canvas, useFrame } from '@react-three/fiber';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
-import type { Theme } from "@/components/theme-provider";
 
 // --- HELPER: K-ANONYMITY SHA-1 HASHING ---
 async function sha1(str: string) {
@@ -178,7 +177,7 @@ function Radar3D({ isScanning, accounts, riskyAccounts, theme }: { isScanning: b
 
 export default function RadarPage() {
   const router = useRouter();
-  const { theme } = useTheme();
+  const { theme } = useTheme() as { theme: Theme };
   const { user, isGuest } = useAuth();
   
   const [loading, setLoading] = useState(true);
@@ -206,6 +205,108 @@ export default function RadarPage() {
 
     return () => unsubscribe();
   }, [user]);
+
+  // --- DICTIONARY TEKS DINAMIS ---
+  const textDict = {
+    formal: {
+      title: "Radar Keamanan",
+      subtitle: "Audit kebocoran data dan kekuatan kata sandimu (Didukung oleh HIBP API)",
+      guestBadge: "Sesi Tamu",
+      btnScan: "Mulai Audit Keamanan",
+      btnScanning: (p: number) => `Memindai... ${p}%`,
+      loadingInitial: "MENYIAPKAN RADAR...",
+      systemIndex: "Skor Kesehatan Vault",
+      totalNodes: "Akun Terdaftar",
+      lastUpdate: "Update:",
+      never: "Belum pernah",
+      statusSafe: "AMAN & TERLINDUNGI",
+      statusWarn: "WASPADA (BUTUH TINDAKAN)",
+      statusCrit: "KRITIS / BERBAHAYA",
+      statBreachTitle: "Kebocoran Data",
+      statBreachSub: "Ditemukan di Dark Web",
+      statWeakTitle: "Sandi Lemah",
+      statWeakSub: "Sangat rawan diretas",
+      statReusedTitle: "Sandi Kembar",
+      statReusedSub: "Risiko domino tinggi",
+      issuesTitle: "Prioritas Penanganan",
+      issuesBadge: "ISSUES",
+      analyzingText: (p: number) => `ANALYZING_ENCRYPTION_HASH... [${p}%]`,
+      waitTitle: "Menunggu Audit",
+      waitSub: "Klik tombol Pindai untuk mengevaluasi keamanan Vault Anda.",
+      perfectTitle: "Vault dalam kondisi sempurna!",
+      perfectSub: "Tidak ada kebocoran atau kelemahan yang terdeteksi pada akun Anda.",
+      reasonBreach: (count: number) => `BOCOR! Sandi ini ditemukan ${count.toLocaleString()} kali di internet.`,
+      reasonReused: (count: number) => `Sandi kembar (Digunakan di ${count} layanan berbeda).`,
+      reasonWeak: 'Sandi terlalu lemah. Sangat rentan terhadap Brute Force.',
+      reasonOld: (days: number) => `Sandi belum diganti selama ${Math.floor(days)} hari (Sandi Usang).`
+    },
+    casual: {
+      title: "Radar Keamanan",
+      subtitle: "Cek kebocoran data dan seberapa kuat password kamu di sini.",
+      guestBadge: "Sesi Tamu",
+      btnScan: "Mulai Scan Sekarang",
+      btnScanning: (p: number) => `Lagi nge-scan... ${p}%`,
+      loadingInitial: "NYIAPIN RADAR...",
+      systemIndex: "Skor Keamanan Kamu",
+      totalNodes: "Total Akun",
+      lastUpdate: "Terakhir Cek:",
+      never: "Belum pernah",
+      statusSafe: "AMAN BANGET",
+      statusWarn: "LUMAYAN BAHAYA",
+      statusCrit: "BAHAYA BANGET",
+      statBreachTitle: "Data Bocor",
+      statBreachSub: "Ketemu di internet",
+      statWeakTitle: "Password Lemah",
+      statWeakSub: "Gampang ditebak",
+      statReusedTitle: "Password Kembar",
+      statReusedSub: "Bahaya kalau satu jebol",
+      issuesTitle: "Masalah yang Harus Diberesin",
+      issuesBadge: "MASALAH",
+      analyzingText: (p: number) => `Lagi ngecek password... [${p}%]`,
+      waitTitle: "Belum Di-scan",
+      waitSub: "Klik tombol scan buat ngecek seberapa aman password kamu.",
+      perfectTitle: "Aman Sentosa!",
+      perfectSub: "Gak ada password yang bocor atau lemah. Pertahankan!",
+      reasonBreach: (count: number) => `BOCOR! Password ini udah ketahuan ${count.toLocaleString()} kali di internet.`,
+      reasonReused: (count: number) => `Password kembar (Kamu pakai di ${count} tempat lain).`,
+      reasonWeak: 'Password terlalu lemah, gampang banget ditebak hacker.',
+      reasonOld: (days: number) => `Password ini udah ${Math.floor(days)} hari gak diganti (Usang).`
+    },
+    hacker: {
+      title: "SECURITY_RADAR",
+      subtitle: "DEEP_WEB_MONITORING_SYSTEM (HIBP_PROTOCOL)",
+      guestBadge: "GUEST_SESSION",
+      btnScan: "INITIATE_DEEP_SCAN",
+      btnScanning: (p: number) => `SCANNING_NETWORK... [${p}%]`,
+      loadingInitial: "INITIALIZING_RADAR_ARRAY...",
+      systemIndex: "SYSTEM_INTEGRITY_INDEX",
+      totalNodes: "NODES_REGISTERED",
+      lastUpdate: "LAST_SYNC:",
+      never: "NULL",
+      statusSafe: "SECURE // ENCRYPTED",
+      statusWarn: "WARNING // VULNERABLE",
+      statusCrit: "CRITICAL // BREACHED",
+      statBreachTitle: "DATA_BREACHES",
+      statBreachSub: "DARK_WEB_MATCH_FOUND",
+      statWeakTitle: "WEAK_CIPHERS",
+      statWeakSub: "BRUTE_FORCE_RISK",
+      statReusedTitle: "REUSED_KEYS",
+      statReusedSub: "DOMINO_EFFECT_RISK",
+      issuesTitle: "VULNERABILITY_LOGS",
+      issuesBadge: "THREATS",
+      analyzingText: (p: number) => `DECRYPTING_HASH_TABLES... [${p}%]`,
+      waitTitle: "AWAITING_COMMAND",
+      waitSub: "EXECUTE SCAN TO EVALUATE SYSTEM INTEGRITY.",
+      perfectTitle: "ZERO_VULNERABILITIES_DETECTED",
+      perfectSub: "SYSTEM IS FULLY SECURED. NO BREACHES OR WEAK CIPHERS FOUND.",
+      reasonBreach: (count: number) => `CRITICAL: Hash match found ${count.toLocaleString()} times in known breaches.`,
+      reasonReused: (count: number) => `WARNING: Cipher reused across ${count} different nodes.`,
+      reasonWeak: 'VULNERABILITY: Cipher entropy too low. Brute-force risk.',
+      reasonOld: (days: number) => `AGING_CIPHER: Key unrotated for ${Math.floor(days)} days.`
+    }
+  };
+
+  const t = textDict[theme];
 
   // 2. MESIN AUDIT LOKAL (Proporsional Scoring)
   const startDeepScan = async () => {
@@ -236,14 +337,14 @@ export default function RadarPage() {
         const pwnedCount = await checkPwned(acc.password);
         if (pwnedCount > 0) {
           breachedCount++;
-          riskyList.push({ acc, reason: `BOCOR! Sandi ini ditemukan ${pwnedCount.toLocaleString()} kali di internet.`, severity: 'high' });
+          riskyList.push({ acc, reason: t.reasonBreach(pwnedCount), severity: 'high' });
           isRisky = true;
         }
 
         // B. Cek Sandi Digunakan Ulang (Risiko Menengah)
         if (!isRisky && passwordMap.get(acc.password)!.length > 1) {
           reusedCount++;
-          riskyList.push({ acc, reason: `Sandi kembar (Digunakan di ${passwordMap.get(acc.password)!.length} layanan berbeda).`, severity: 'medium' });
+          riskyList.push({ acc, reason: t.reasonReused(passwordMap.get(acc.password)!.length), severity: 'medium' });
           isRisky = true;
         }
 
@@ -251,7 +352,7 @@ export default function RadarPage() {
         const isWeak = acc.password.length < 8 || !/\d/.test(acc.password) || !/[A-Za-z]/.test(acc.password);
         if (!isRisky && isWeak) {
           weakCount++;
-          riskyList.push({ acc, reason: 'Sandi terlalu lemah. Sangat rentan terhadap Brute Force.', severity: 'medium' });
+          riskyList.push({ acc, reason: t.reasonWeak, severity: 'medium' });
           isRisky = true;
         }
       }
@@ -267,7 +368,7 @@ export default function RadarPage() {
         const daysOld = (new Date().getTime() - lastUpd.getTime()) / (1000 * 3600 * 24);
         
         if (daysOld > 180) {
-          riskyList.push({ acc, reason: `Sandi belum diganti selama ${Math.floor(daysOld)} hari (Sandi Usang).`, severity: 'low' });
+          riskyList.push({ acc, reason: t.reasonOld(daysOld), severity: 'low' });
         }
       }
       
@@ -281,9 +382,9 @@ export default function RadarPage() {
         if (!risk) {
             totalPoints += 100; // Akun sempurna = 100 Poin
         } else {
-            if (risk.reason.includes("BOCOR")) totalPoints += 0; // Bocor = 0 Poin
-            else if (risk.reason.includes("lemah")) totalPoints += 30; // Lemah = 30 Poin
-            else if (risk.reason.includes("Sandi kembar")) totalPoints += 60; // Kembar = 60 Poin
+            if (risk.reason.includes("BOCOR") || risk.reason.includes("CRITICAL")) totalPoints += 0; // Bocor = 0 Poin
+            else if (risk.reason.includes("lemah") || risk.reason.includes("VULNERABILITY")) totalPoints += 30; // Lemah = 30 Poin
+            else if (risk.reason.includes("kembar") || risk.reason.includes("reused")) totalPoints += 60; // Kembar = 60 Poin
             else totalPoints += 80; // Usang = 80 Poin
         }
     });
@@ -356,15 +457,15 @@ export default function RadarPage() {
     return (
       <div className={cn("flex flex-col items-center justify-center h-[80vh] font-mono", cs.textMain)}>
         <Activity size={32} className={cn("animate-pulse mb-4", cs.accent)} />
-        <span className="tracking-widest animate-pulse text-sm">MENYIAPKAN RADAR...</span>
+        <span className="tracking-widest animate-pulse text-sm">{t.loadingInitial}</span>
       </div>
     );
   }
 
   let healthColor = cs.safe;
-  let healthText = "AMAN & TERLINDUNGI";
-  if (healthScore <= 50) { healthColor = "text-red-500 dark:text-red-400"; healthText = "KRITIS / BERBAHAYA"; }
-  else if (healthScore < 80) { healthColor = "text-amber-500 dark:text-amber-400"; healthText = "WASPADA (BUTUH TINDAKAN)"; }
+  let healthText = t.statusSafe;
+  if (healthScore <= 50) { healthColor = "text-red-500 dark:text-red-400"; healthText = t.statusCrit; }
+  else if (healthScore < 80) { healthColor = "text-amber-500 dark:text-amber-400"; healthText = t.statusWarn; }
 
   return (
     <div className={cn("min-h-[85vh] p-4 lg:p-6 border shadow-2xl overflow-hidden flex flex-col transition-colors duration-500", cs.wrapper)}>
@@ -377,11 +478,11 @@ export default function RadarPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              {theme === 'hacker' ? 'SECURITY_RADAR' : 'Radar Keamanan'}
-              {isGuest && <span className={cn("text-[10px] px-2 py-0.5 border font-bold uppercase", cs.warning, "ml-2")}>Sesi Tamu</span>}
+              {t.title}
+              {isGuest && <span className={cn("text-[10px] px-2 py-0.5 border font-bold uppercase", cs.warning, "ml-2")}>{t.guestBadge}</span>}
             </h1>
             <p className={cn("text-xs mt-1 font-medium", cs.textSub)}>
-              {theme === 'hacker' ? 'DEEP_WEB_MONITORING_SYSTEM' : 'Audit kebocoran data dan kekuatan kata sandimu (Didukung oleh HIBP API)'}
+              {t.subtitle}
             </p>
           </div>
         </div>
@@ -393,7 +494,7 @@ export default function RadarPage() {
               className={cn("px-6 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50", cs.btn)}
             >
               <RefreshCw size={16} className={isScanning ? "animate-spin" : ""} />
-              {isScanning ? (theme === 'hacker' ? `SCANNING... [${scanProgress}%]` : `Memindai... ${scanProgress}%`) : (theme === 'hacker' ? 'INITIATE_DEEP_SCAN' : 'Mulai Audit Keamanan')}
+              {isScanning ? t.btnScanning(scanProgress) : t.btnScan}
             </button>
         </div>
       </div>
@@ -412,13 +513,13 @@ export default function RadarPage() {
             <div className={cn("relative z-10 flex flex-col items-center text-center mt-4 p-6 rounded-2xl backdrop-blur-md shadow-2xl border transition-colors", cs.overlay)}>
               <div className={cn("text-7xl font-bold font-mono tracking-tighter drop-shadow-lg transition-colors", healthColor)}>{healthScore}</div>
               <div className={cn("text-sm font-bold tracking-widest mt-2 transition-colors", healthColor)}>{healthText}</div>
-              <div className={cn("text-[10px] mt-2 max-w-[200px] leading-relaxed font-bold uppercase tracking-wider", cs.textSub)}>{theme === 'hacker' ? 'SYSTEM_INTEGRITY_INDEX' : 'Skor Kesehatan Vault'}</div>
+              <div className={cn("text-[10px] mt-2 max-w-[200px] leading-relaxed font-bold uppercase tracking-wider", cs.textSub)}>{t.systemIndex}</div>
             </div>
 
             {/* META FOOTER OVERLAY */}
             <div className={cn("mt-auto relative z-10 w-full pt-4 text-[10px] flex justify-between font-bold uppercase", cs.textSub)}>
-              <span className="flex items-center gap-1 px-2 py-1 bg-black/10 dark:bg-white/10 rounded backdrop-blur-sm"><Fingerprint size={12}/> {accounts.length} Nodes</span>
-              <span className="px-2 py-1 bg-black/10 dark:bg-white/10 rounded backdrop-blur-sm">Update: {lastScan ? lastScan.toLocaleTimeString() : 'N/A'}</span>
+              <span className="flex items-center gap-1 px-2 py-1 bg-black/10 dark:bg-white/10 rounded backdrop-blur-sm"><Fingerprint size={12}/> {accounts.length} {t.totalNodes.split(' ')[1] || t.totalNodes}</span>
+              <span className="px-2 py-1 bg-black/10 dark:bg-white/10 rounded backdrop-blur-sm">{t.lastUpdate} {lastScan ? lastScan.toLocaleTimeString() : t.never}</span>
             </div>
           </div>
 
@@ -432,8 +533,8 @@ export default function RadarPage() {
                   <span className="text-2xl font-bold font-mono">{stats.breached}</span>
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wider">Kebocoran Data</p>
-                  <p className="text-[10px] opacity-70 mt-0.5">Ditemukan di Dark Web</p>
+                  <p className="text-xs font-bold uppercase tracking-wider">{t.statBreachTitle}</p>
+                  <p className="text-[10px] opacity-70 mt-0.5">{t.statBreachSub}</p>
                 </div>
               </div>
               <div className={cn("p-4 border flex flex-col gap-3 transition-colors", cs.panel, stats.weak > 0 ? cs.warning : "")}>
@@ -442,8 +543,8 @@ export default function RadarPage() {
                   <span className="text-2xl font-bold font-mono">{stats.weak}</span>
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wider">Sandi Lemah</p>
-                  <p className="text-[10px] opacity-70 mt-0.5">Sangat rawan diretas</p>
+                  <p className="text-xs font-bold uppercase tracking-wider">{t.statWeakTitle}</p>
+                  <p className="text-[10px] opacity-70 mt-0.5">{t.statWeakSub}</p>
                 </div>
               </div>
               <div className={cn("p-4 border flex flex-col gap-3 transition-colors", cs.panel, stats.reused > 0 ? cs.warning : "")}>
@@ -452,8 +553,8 @@ export default function RadarPage() {
                   <span className="text-2xl font-bold font-mono">{stats.reused}</span>
                 </div>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wider">Sandi Kembar</p>
-                  <p className="text-[10px] opacity-70 mt-0.5">Risiko domino tinggi</p>
+                  <p className="text-xs font-bold uppercase tracking-wider">{t.statReusedTitle}</p>
+                  <p className="text-[10px] opacity-70 mt-0.5">{t.statReusedSub}</p>
                 </div>
               </div>
             </div>
@@ -463,10 +564,10 @@ export default function RadarPage() {
               <div className="p-4 border-b border-inherit flex items-center justify-between bg-black/5">
                 <h3 className="text-sm font-bold flex items-center gap-2 uppercase tracking-wider">
                   <Search size={16} className={cs.accent} />
-                  {theme === 'hacker' ? 'VULNERABILITY_LOGS' : 'Prioritas Penanganan'}
+                  {t.issuesTitle}
                 </h3>
                 <span className={cn("text-[10px] font-bold px-2 py-1 rounded", stats.breached + stats.weak + stats.reused > 0 ? "bg-red-500/20 text-red-500" : "bg-emerald-500/20 text-emerald-500")}>
-                  {riskyAccounts.length} ISSUES
+                  {riskyAccounts.length} {t.issuesBadge}
                 </span>
               </div>
 
@@ -476,19 +577,19 @@ export default function RadarPage() {
                     <div className={cn("w-48 h-1.5 rounded-full overflow-hidden border border-inherit", cs.progressBg)}>
                       <div className={cn("h-full transition-all duration-300", cs.accentBg)} style={{ width: `${scanProgress}%` }} />
                     </div>
-                    <span className="animate-pulse">ANALYZING_ENCRYPTION_HASH... [{scanProgress}%]</span>
+                    <span className="animate-pulse">{t.analyzingText(scanProgress)}</span>
                   </div>
                 ) : !lastScan ? (
                   <div className="h-full flex flex-col items-center justify-center opacity-50 text-sm gap-2 min-h-[200px]">
                     <Activity size={48} className={cs.textSub} />
-                    <p className="font-bold text-center">Menunggu Audit</p>
-                    <p className="text-xs text-center max-w-xs">Klik tombol Pindai untuk mengevaluasi keamanan Vault Anda.</p>
+                    <p className="font-bold text-center">{t.waitTitle}</p>
+                    <p className="text-xs text-center max-w-xs">{t.waitSub}</p>
                   </div>
                 ) : riskyAccounts.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center opacity-50 text-sm gap-2 min-h-[200px]">
                     <CheckCircle2 size={48} className="text-emerald-500 mb-2" />
-                    <p className="font-bold">Vault dalam kondisi sempurna!</p>
-                    <p className="text-xs text-center max-w-xs">Tidak ada kebocoran atau kelemahan yang terdeteksi pada akun Anda.</p>
+                    <p className="font-bold">{t.perfectTitle}</p>
+                    <p className="text-xs text-center max-w-xs">{t.perfectSub}</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -508,7 +609,7 @@ export default function RadarPage() {
                               <Icon size={18} />
                             </div>
                             <div className="overflow-hidden">
-                              <p className={cn("font-bold text-sm truncate transition-colors", cs.textMain, "group-hover:text-blue-500", theme==='hacker'&&'group-hover:text-green-400')}>
+                              <p className={cn("font-bold text-sm truncate transition-colors", cs.textMain, "group-hover:text-blue-500", theme==='hacker'&&'group-hover:text-green-400', theme==='casual'&&'group-hover:text-orange-500')}>
                                 {item.acc.serviceName} 
                                 <span className="ml-2 font-normal opacity-50 font-mono text-[10px]">{item.acc.identifier}</span>
                               </p>

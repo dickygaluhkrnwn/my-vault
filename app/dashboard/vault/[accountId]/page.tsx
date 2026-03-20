@@ -6,7 +6,7 @@ import { doc, getDoc, collection, query, where, getDocs, addDoc } from "firebase
 import { db } from "@/lib/firebase";
 import { Account, AccountCategory } from "@/lib/types/schema";
 import { useAuth } from "@/components/auth-provider";
-import { useTheme } from "@/components/theme-provider";
+import { useTheme, Theme } from "@/components/theme-provider";
 import { cn, formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { 
@@ -18,11 +18,58 @@ import {
   MoreHorizontal, Clock, Key, Database, Trash2, AlertTriangle,
   Send, XCircle
 } from "lucide-react";
+import { TemplateField } from "@/lib/constants/templates";
+
+// --- HELPER ICONS ---
+const getCategoryIcon = (category: string, size: number = 28) => {
+  switch (category) {
+    case "GAME": return <Gamepad2 size={size} className="text-purple-500 dark:text-purple-400" />;
+    case "FINANCE": return <Wallet size={size} className="text-emerald-500 dark:text-emerald-400" />;
+    case "SOCIAL": return <Share2 size={size} className="text-blue-500 dark:text-blue-400" />;
+    case "WORK": return <Briefcase size={size} className="text-amber-500 dark:text-amber-400" />;
+    case "UTILITY": return <Mail size={size} className="text-orange-500 dark:text-orange-400" />;
+    case "ENTERTAINMENT": return <Music size={size} className="text-pink-500 dark:text-pink-400" />;
+    case "EDUCATION": return <GraduationCap size={size} className="text-yellow-500 dark:text-yellow-400" />;
+    case "ECOMMERCE": return <ShoppingBag size={size} className="text-rose-500 dark:text-rose-400" />;
+    default: return <Lock size={size} className="text-slate-400" />;
+  }
+};
+
+// --- SMART FAVICON COMPONENT ---
+function AccountIcon({ account, size = 28, sizeClass = "w-7 h-7" }: { account: Account, size?: number, sizeClass?: string }) {
+  const [error, setError] = useState(false);
+  
+  const cleanDomain = (url: string) => {
+    if (!url) return "";
+    try {
+      const parsed = new URL(url.includes('http') ? url : `https://${url}`);
+      return parsed.hostname;
+    } catch {
+      return url.split('/')[0];
+    }
+  };
+
+  const domain = cleanDomain((account as any).websiteUrl || "");
+  const iconUrl = domain ? `https://s2.googleusercontent.com/s2/favicons?domain=${domain}&sz=128` : "";
+
+  if (iconUrl && !error) {
+    return (
+      <img 
+        src={iconUrl} 
+        alt={account.serviceName} 
+        className={cn("object-contain", sizeClass)}
+        onError={() => setError(true)}
+      />
+    );
+  }
+
+  return getCategoryIcon(account.category, size);
+}
 
 export default function AccountDetailPage({ params }: { params: Promise<{ accountId: string }> }) {
   const { accountId } = use(params);
   const router = useRouter();
-  const { theme } = useTheme();
+  const { theme } = useTheme() as { theme: Theme };
   const { user, isGuest } = useAuth();
   
   const [account, setAccount] = useState<Account | null>(null);
@@ -42,21 +89,6 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
     navigator.clipboard.writeText(text);
     setCopiedField(fieldName);
     setTimeout(() => setCopiedField(null), 2000);
-  };
-
-  // Helper Icon Kategori
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "GAME": return <Gamepad2 size={28} className="text-purple-500 dark:text-purple-400" />;
-      case "FINANCE": return <Wallet size={28} className="text-emerald-500 dark:text-emerald-400" />;
-      case "SOCIAL": return <Share2 size={28} className="text-blue-500 dark:text-blue-400" />;
-      case "WORK": return <Briefcase size={28} className="text-amber-500 dark:text-amber-400" />;
-      case "UTILITY": return <Mail size={28} className="text-orange-500 dark:text-orange-400" />;
-      case "ENTERTAINMENT": return <Music size={28} className="text-pink-500 dark:text-pink-400" />;
-      case "EDUCATION": return <GraduationCap size={28} className="text-yellow-500 dark:text-yellow-400" />;
-      case "ECOMMERCE": return <ShoppingBag size={28} className="text-rose-500 dark:text-rose-400" />;
-      default: return <Lock size={28} className="text-slate-400" />;
-    }
   };
 
   // FETCH SECURE DATA
@@ -190,13 +222,121 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
     }
   };
 
+  // --- DICTIONARY TEKS DINAMIS ---
+  const textDict = {
+    formal: {
+      loading: "Mendekripsi Data Akun...",
+      modalShareTitle: "Bagikan Akses",
+      modalShareSub: "Tautan Aman Sekali Pakai",
+      modalShareDesc1: "Sistem akan membuat tautan rahasia yang berisi data ",
+      modalShareDesc2: "Tautan ini akan hancur selamanya setelah 1 kali dibuka oleh penerima, atau hangus otomatis dalam 24 Jam.",
+      btnGenerating: "Membuat Tautan...",
+      btnGenerate: "Buat Tautan Rahasia",
+      modalSuccessTitle: "TAUTAN BERHASIL DIBUAT",
+      modalWarning: "Peringatan: Jangan klik tautan Anda sendiri, atau data akan hangus!",
+      typeLabel: "TIPE",
+      statusLabel: "STATUS",
+      btnShare: "BAGIKAN",
+      btnEdit: "EDIT",
+      lblOwner: "PEMILIK",
+      lblParent: "INDUK",
+      sec1Title: "Kredensial Akses",
+      lblId: "Username / Email / Identitas",
+      lblPass: "Kata Sandi Rahasia",
+      lblParentLink: "Tautan Akun Induk",
+      sec2Title: "Detail Tambahan",
+      lblTags: "Label / Tag",
+      sec3Title: "Sub-Akun Terhubung",
+      lblInit: "DIBUAT",
+      lblMod: "DIUBAH"
+    },
+    casual: {
+      loading: "Membuka gembok data...",
+      modalShareTitle: "Bagikan Akun",
+      modalShareSub: "Link Sekali Pakai (Aman)",
+      modalShareDesc1: "Sistem bakal bikinin link rahasia buat data ",
+      modalShareDesc2: "Link ini bakal otomatis hangus setelah 1x dibuka, atau maksimal 24 Jam.",
+      btnGenerating: "Lagi Bikin Link...",
+      btnGenerate: "Bikin Link Rahasia",
+      modalSuccessTitle: "LINK BERHASIL DIBIKIN",
+      modalWarning: "Awas: Jangan klik linknya sendiri ya, nanti datanya keburu hangus!",
+      typeLabel: "KATEGORI",
+      statusLabel: "STATUS",
+      btnShare: "BAGIKAN",
+      btnEdit: "EDIT",
+      lblOwner: "PUNYA",
+      lblParent: "INDUK",
+      sec1Title: "Data Login",
+      lblId: "Username atau Email",
+      lblPass: "Kata Sandi",
+      lblParentLink: "Akun Induk Utama",
+      sec2Title: "Info Ekstra",
+      lblTags: "Tags",
+      sec3Title: "Akun yang Nyambung",
+      lblInit: "DIBIKIN",
+      lblMod: "DIUPDATE"
+    },
+    hacker: {
+      loading: "DECRYPTING_NODE_DATA...",
+      modalShareTitle: "SECURE_SHARE",
+      modalShareSub: "BURN-ON-READ PROTOCOL",
+      modalShareDesc1: "System will generate a highly-encrypted, self-destructing link for payload: ",
+      modalShareDesc2: "This link will permanently self-destruct after exactly 1 read, or within 24 hours.",
+      btnGenerating: "ENCRYPTING_PAYLOAD...",
+      btnGenerate: "GENERATE_SECURE_LINK",
+      modalSuccessTitle: "PAYLOAD_ENCRYPTED",
+      modalWarning: "WARNING: DO NOT ACCESS THE LINK YOURSELF. PAYLOAD WILL BE BURNED.",
+      typeLabel: "TYPE",
+      statusLabel: "STATUS",
+      btnShare: "SHARE_NODE",
+      btnEdit: "MODIFY_NODE",
+      lblOwner: "OWNER",
+      lblParent: "PARENT",
+      sec1Title: "ACCESS_CREDENTIALS",
+      lblId: "USER_IDENTIFIER",
+      lblPass: "AUTH_KEY / PASSWORD",
+      lblParentLink: "PARENT_NODE_LINK",
+      sec2Title: "NODE_ATTRIBUTES",
+      lblTags: "DATA_FLAGS (TAGS)",
+      sec3Title: "LINKED_SUBSYSTEMS",
+      lblInit: "INIT",
+      lblMod: "MOD"
+    }
+  };
+
   const cs = styles[theme];
+  const t = textDict[theme];
+
+  // Helper Kamus Atribut Kustom berdasarkan Tema
+  const getTField = (key: string) => {
+    const dict: Record<string, Record<string, string>> = {
+      dob: { formal: "Tanggal Lahir", casual: "Tgl Lahir", hacker: "DOB_RECORD" },
+      gender: { formal: "Jenis Kelamin", casual: "Gender", hacker: "GENDER_ID" },
+      recovery: { formal: "Kontak Pemulihan", casual: "No. Pemulihan", hacker: "RECOVERY_COMMS" },
+      inst: { formal: "Institusi", casual: "Kampus/Sekolah", hacker: "INSTITUTION" },
+      course: { formal: "Program Studi", casual: "Jurusan", hacker: "COURSE_MODULE" },
+      level: { formal: "Tingkat/Semester", casual: "Semester", hacker: "CURRENT_LEVEL" },
+      prog: { formal: "Progres (%)", casual: "Progres", hacker: "PROGRESS_PCT" },
+      shop: { formal: "Nama Toko", casual: "Nama Toko", hacker: "SHOP_IDENTIFIER" },
+      limit: { formal: "Limit Paylater", casual: "Limit Ngutang", hacker: "PAYLATER_CAP" },
+      phone: { formal: "No. Handphone", casual: "No. HP", hacker: "LINKED_MOBILE" },
+      ign: { formal: "Nama Akun (IGN)", casual: "Nickname Game", hacker: "IGN_HANDLE" },
+      server: { formal: "Server / Region", casual: "Server", hacker: "SERVER_REGION" },
+      rank: { formal: "Pangkat / Rank", casual: "Rank", hacker: "COMPETITIVE_RANK" },
+      gLevel: { formal: "Level Game", casual: "Level", hacker: "LEVEL_IND" },
+      norek: { formal: "Nomor Rekening", casual: "No. Rekening", hacker: "ACC_NUMBER" },
+      pinAtm: { formal: "PIN ATM", casual: "PIN ATM", hacker: "ATM_PIN_CODE" },
+      pinApp: { formal: "PIN Aplikasi", casual: "PIN App", hacker: "APP_ACCESS_PIN" },
+      url: { formal: "Tautan Profil", casual: "Link Profil", hacker: "PROFILE_URL_LINK" },
+    };
+    return dict[key]?.[theme] || key;
+  };
 
   if (loading) {
     return (
       <div className={cn("flex flex-col items-center justify-center h-[80vh] font-mono", cs.textMain)}>
         <Activity size={32} className={cn("animate-pulse mb-4", cs.accent)} />
-        <span className="tracking-widest animate-pulse text-sm uppercase">DECRYPTING_NODE_DATA...</span>
+        <span className="tracking-widest animate-pulse text-sm uppercase">{t.loading}</span>
       </div>
     );
   }
@@ -221,8 +361,8 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
                   <Share2 size={24} />
                 </div>
                 <div>
-                  <h3 className={cn("text-lg font-bold tracking-tight", theme === 'hacker' && 'tracking-widest uppercase text-purple-400 font-mono')}>Bagikan Akses</h3>
-                  <p className={cn("text-[10px] uppercase tracking-wider font-bold", cs.textSub)}>One-Time Secure Link</p>
+                  <h3 className={cn("text-lg font-bold tracking-tight", theme === 'hacker' && 'tracking-widest uppercase text-purple-400 font-mono')}>{t.modalShareTitle}</h3>
+                  <p className={cn("text-[10px] uppercase tracking-wider font-bold", cs.textSub)}>{t.modalShareSub}</p>
                 </div>
               </div>
               <button onClick={() => setShowShareModal(false)} disabled={isGeneratingLink} className="opacity-50 hover:opacity-100 transition-opacity disabled:opacity-30"><XCircle size={24}/></button>
@@ -231,9 +371,14 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
             {!generatedLink ? (
               <>
                 <p className={cn("text-sm leading-relaxed border-l-2 pl-3", theme === 'hacker' ? 'border-purple-900/50' : 'border-purple-200 dark:border-purple-900/50', cs.textSub)}>
-                  Sistem akan membuat tautan rahasia yang berisi data <strong className={cs.textMain}>{account.serviceName}</strong>. 
+                  {t.modalShareDesc1} <strong className={cs.textMain}>{account.serviceName}</strong>. 
                   <br/><br/>
-                  <span className="text-red-500 font-bold font-mono text-[10px] bg-red-500/10 px-2 py-1 rounded">BURN-ON-READ PROTOCOL:</span> Tautan ini akan <strong className="text-red-500">hancur selamanya</strong> setelah 1 kali dibuka oleh penerima, atau hangus otomatis dalam 24 Jam.
+                  {theme === 'hacker' ? (
+                    <span className="text-red-500 font-bold font-mono text-[10px] bg-red-500/10 px-2 py-1 rounded">BURN-ON-READ PROTOCOL:</span>
+                  ) : (
+                    <span className="text-red-500 font-bold text-[10px] bg-red-500/10 px-2 py-1 rounded">PERHATIAN:</span>
+                  )}
+                  {' '} {t.modalShareDesc2}
                 </p>
 
                 <div className="pt-2">
@@ -243,7 +388,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
                     className={cn("w-full py-3.5 text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50", cs.btnShare)}
                   >
                     {isGeneratingLink ? <Loader2 size={18} className="animate-spin"/> : <Send size={18} />}
-                    {isGeneratingLink ? (theme === 'hacker' ? 'ENCRYPTING_PAYLOAD...' : 'Membuat Tautan...') : (theme === 'hacker' ? 'GENERATE_SECURE_LINK' : 'Buat Tautan Rahasia')}
+                    {isGeneratingLink ? t.btnGenerating : t.btnGenerate}
                   </button>
                 </div>
               </>
@@ -253,7 +398,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
                    <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center mb-2">
                      <Check size={24} strokeWidth={3} />
                    </div>
-                   <h4 className={cn("font-bold text-emerald-500", theme === 'hacker' && 'font-mono uppercase tracking-wider')}>LINK BERHASIL DIBUAT</h4>
+                   <h4 className={cn("font-bold text-emerald-500 text-center", theme === 'hacker' && 'font-mono uppercase tracking-wider')}>{t.modalSuccessTitle}</h4>
                 </div>
 
                 <div className={cn("flex items-center gap-3 p-3 md:p-4 rounded-xl relative overflow-hidden group", cs.fieldBg, theme === 'hacker' && 'rounded-sm', theme === 'casual' && 'rounded-2xl')}>
@@ -268,7 +413,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
                   </button>
                 </div>
 
-                <p className={cn("text-[10px] text-center uppercase tracking-widest font-bold text-red-500 mt-4")}>Peringatan: Jangan klik link Anda sendiri, atau data akan hangus!</p>
+                <p className={cn("text-[10px] text-center uppercase tracking-widest font-bold text-red-500 mt-4")}>{t.modalWarning}</p>
               </div>
             )}
           </div>
@@ -284,7 +429,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
           
           {/* Logo / Icon */}
           <div className={cn("p-4 shrink-0 flex items-center justify-center transition-colors shadow-sm", theme === 'hacker' ? 'bg-black border border-green-900/50 rounded-md' : 'bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl', theme === 'casual' && 'rounded-[1.5rem]')}>
-            {getCategoryIcon(account.category)}
+            <AccountIcon account={account} size={32} sizeClass="w-8 h-8" />
           </div>
           
           <div className="flex-1 min-w-0 flex flex-col w-full">
@@ -299,7 +444,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
                  </div>
                  <div className="flex flex-wrap items-center gap-2 mt-2">
                     <span className={cn("px-3 py-1 text-[10px] font-bold border uppercase tracking-wider font-mono", theme === 'hacker' ? 'bg-black text-green-600 border-green-900/50 rounded-sm' : 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 rounded-md')}>
-                      TYPE: {account.category}
+                      {t.typeLabel}: {account.category}
                     </span>
                     <span className={cn("px-3 py-1 text-[10px] font-bold border uppercase tracking-wider font-mono rounded-md", 
                       theme === 'hacker' && 'rounded-sm',
@@ -307,7 +452,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
                       account.status === 'BANNED' ? 'bg-red-500/10 text-red-500 border-red-500/30' :
                       'bg-slate-500/10 text-slate-500 border-slate-500/30'
                     )}>
-                      STATUS: {account.status}
+                      {t.statusLabel}: {account.status}
                     </span>
                  </div>
               </div>
@@ -319,14 +464,14 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
                   className={cn("flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 transition-all text-xs font-bold active:scale-95", cs.btnShare)}
                 >
                   <Share2 size={14} />
-                  <span>{theme === 'hacker' ? 'SHARE_NODE' : 'BAGIKAN'}</span>
+                  <span>{t.btnShare}</span>
                 </button>
                 <button 
                   onClick={() => router.push(`/dashboard/vault/edit/${account.id}`)}
                   className={cn("flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 transition-all text-xs font-bold active:scale-95", cs.btnOutline)}
                 >
                   <Pencil size={14} />
-                  <span>{theme === 'hacker' ? 'MODIFY_NODE' : 'EDIT'}</span>
+                  <span>{t.btnEdit}</span>
                 </button>
               </div>
             </div>
@@ -335,12 +480,12 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
             <div className={cn("flex flex-wrap items-center gap-x-6 gap-y-3 text-xs pt-4 border-t mt-5 w-full", cs.textSub, theme === 'hacker' ? 'border-green-900/30 border-dashed' : 'border-slate-200 dark:border-slate-800')}>
                <span className="flex items-center gap-2">
                  <User size={14} className={cs.accent} />
-                 OWNER: <span className={cn("font-bold", cs.textMain)}>{account.owner || 'Vault Pribadi'}</span>
+                 {t.lblOwner}: <span className={cn("font-bold", cs.textMain)}>{account.owner || 'Vault Pribadi'}</span>
                </span>
                {account.linkedEmail && (
                  <span className="flex items-center gap-2 max-w-full">
                    <LinkIcon size={14} className="text-purple-500 shrink-0" />
-                   <span className="truncate">PARENT: <span className={cn("font-bold", cs.textMain)}>{account.linkedEmail.split('@')[0]}</span></span>
+                   <span className="truncate">{t.lblParent}: <span className={cn("font-bold", cs.textMain)}>{account.linkedEmail.split('@')[0]}</span></span>
                  </span>
                )}
             </div>
@@ -356,13 +501,13 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
           <div className={cn("p-6 flex flex-col h-full", cs.panel)}>
             <h3 className={cn("text-xs font-bold uppercase tracking-[0.2em] flex items-center gap-2 mb-6 border-b pb-3", cs.textSub, theme === 'hacker' ? 'border-green-900/30' : 'border-slate-200 dark:border-slate-800')}>
               <Shield size={16} className={cs.accent} />
-              {theme === 'hacker' ? 'ACCESS_CREDENTIALS' : 'Kredensial Akses'}
+              {t.sec1Title}
             </h3>
 
             <div className="space-y-6 flex-1">
               {/* Identifier */}
               <div className="group">
-                <label className={cn("text-[10px] font-bold mb-1.5 block ml-1 uppercase tracking-wider", cs.textSub)}>User_Identifier</label>
+                <label className={cn("text-[10px] font-bold mb-1.5 block ml-1 uppercase tracking-wider", cs.textSub)}>{t.lblId}</label>
                 <div className={cn("flex items-center gap-3 p-3.5 md:p-4 rounded-xl transition-all group-hover:border-blue-500/50", cs.fieldBg, theme === 'hacker' && 'rounded-sm group-hover:border-green-500/50', theme === 'casual' && 'rounded-2xl group-hover:border-orange-500/50')}>
                   <Terminal size={18} className={cs.textSub} />
                   <span className={cn("flex-1 font-mono break-all text-sm whitespace-normal font-medium", cs.textMain)}>{account.identifier}</span>
@@ -378,7 +523,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
 
               {/* Password */}
               <div className="group">
-                <label className={cn("text-[10px] font-bold mb-1.5 block ml-1 uppercase tracking-wider", cs.textSub)}>Auth_Key / Password</label>
+                <label className={cn("text-[10px] font-bold mb-1.5 block ml-1 uppercase tracking-wider", cs.textSub)}>{t.lblPass}</label>
                 <div className={cn("flex items-center gap-3 p-3.5 md:p-4 rounded-xl transition-all relative overflow-hidden group-hover:border-red-500/40", cs.fieldBg, theme === 'hacker' && 'rounded-sm', theme === 'casual' && 'rounded-2xl')}>
                   <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-red-500/30" />
                   
@@ -412,7 +557,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
                 <div className={cn("mt-6 p-4 rounded-xl border border-purple-500/20 flex items-start gap-4", theme === 'hacker' ? 'bg-purple-950/10 rounded-sm' : 'bg-purple-50 dark:bg-purple-950/20', theme === 'casual' && 'rounded-2xl')}>
                   <Share2 size={20} className="text-purple-500 mt-0.5 shrink-0" />
                   <div className="min-w-0">
-                    <h4 className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-1.5">Parent_Node_Link</h4>
+                    <h4 className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-1.5">{t.lblParentLink}</h4>
                     <p className={cn("text-sm break-all font-mono whitespace-normal font-bold", cs.textMain)}>{account.linkedEmail}</p>
                   </div>
                 </div>
@@ -428,12 +573,12 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
           <div className={cn("p-6 flex flex-col h-full", cs.panel)}>
             <h3 className={cn("text-xs font-bold uppercase tracking-[0.2em] flex items-center gap-2 mb-6 border-b pb-3", cs.textSub, theme === 'hacker' ? 'border-green-900/30' : 'border-slate-200 dark:border-slate-800')}>
               <Server size={16} className="text-amber-500" />
-              {theme === 'hacker' ? 'NODE_ATTRIBUTES' : 'Detail Tambahan'}
+              {t.sec2Title}
             </h3>
 
             <div className="space-y-2 flex-1">
               {/* Custom Fields Rendering */}
-              {renderSpecificDetails(account, copiedField, handleCopy, cs, theme)}
+              {renderSpecificDetails(account, copiedField, handleCopy, cs, theme, getTField)}
               
               {/* GENERIC FIELDS (Fallback) */}
                {account.details && Object.entries(account.details).map(([key, value]) => {
@@ -457,7 +602,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
               {/* TAGS */}
               {account.tags && account.tags.length > 0 && (account.tags[0] !== "") && (
                 <div className="pt-6 mt-4 border-t border-dashed border-inherit">
-                  <span className={cn("text-[10px] font-bold uppercase tracking-wider mb-3 block", cs.textSub)}>DATA_FLAGS (Tags)</span>
+                  <span className={cn("text-[10px] font-bold uppercase tracking-wider mb-3 block", cs.textSub)}>{t.lblTags}</span>
                   <div className="flex flex-wrap gap-2">
                     {account.tags.map((tag, idx) => (
                       <span key={idx} className={cn("px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider border", theme === 'hacker' ? 'bg-black text-green-600 border-green-900/50 rounded-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 rounded-md')}>
@@ -477,14 +622,14 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
         <div className={cn("p-6 md:p-8 mt-2", cs.innerPanel)}>
           <h3 className={cn("text-xs font-bold flex items-center gap-2 mb-6 uppercase tracking-[0.2em]", cs.textSub)}>
               <LinkIcon size={16} className="text-purple-500" />
-              LINKED_SUBSYSTEMS ({connectedAccounts.length})
+              {t.sec3Title} ({connectedAccounts.length})
           </h3>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {connectedAccounts.map((child) => (
                 <Link href={`/dashboard/vault/${child.id}`} key={child.id} className={cn("flex items-center gap-4 p-4 border transition-all group", cs.fieldBg, theme !== 'casual' && 'rounded-xl', theme === 'hacker' && 'rounded-sm', theme === 'casual' && 'rounded-2xl', "hover:border-purple-500/50 hover:shadow-md")}>
                     <div className={cn("p-2.5 rounded-lg border transition-colors shrink-0", theme === 'hacker' ? 'bg-black border-green-900/50 group-hover:border-purple-500/30' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 group-hover:border-purple-200 dark:group-hover:border-purple-900/50')}>
-                        {getCategoryIcon(child.category)}
+                        <AccountIcon account={child} size={20} sizeClass="w-5 h-5" />
                     </div>
                     <div className="min-w-0 flex-1">
                         <p className={cn("font-bold text-sm truncate transition-colors", cs.textMain, "group-hover:text-purple-500")}>{child.serviceName}</p>
@@ -501,11 +646,11 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <span className="flex items-center gap-2">
             <Calendar size={14} />
-            INIT: <span className={cs.textMain}>{formatDate(account.createdAt)}</span>
+            {t.lblInit}: <span className={cs.textMain}>{formatDate(account.createdAt)}</span>
           </span>
           <span className="flex items-center gap-2">
             <Pencil size={14} />
-            MOD: <span className={cs.textMain}>{formatDate(account.lastUpdated)}</span>
+            {t.lblMod}: <span className={cs.textMain}>{formatDate(account.lastUpdated)}</span>
           </span>
         </div>
         <div className="truncate flex items-center gap-2">
@@ -519,54 +664,54 @@ export default function AccountDetailPage({ params }: { params: Promise<{ accoun
 
 // --- SUB COMPONENTS ---
 
-function renderSpecificDetails(account: Account, copiedField: string | null, handleCopy: any, cs: any, theme: string) {
+function renderSpecificDetails(account: Account, copiedField: string | null, handleCopy: any, cs: any, theme: string, tField: (k: string) => string) {
     if (!account.details) return null;
     const d = account.details as any;
 
     if (account.category === "UTILITY") {
         return (
             <>
-                {account.birthDate && <DetailRow label="DOB_RECORD" value={formatDate(account.birthDate)} icon={<Calendar size={16}/>} cs={cs} theme={theme} />}
-                {account.gender && <DetailRow label="GENDER_ID" value={account.gender} icon={<User size={16}/>} cs={cs} theme={theme} />}
-                {d.phoneLinked && <DetailRow label="RECOVERY_COMMS" value={d.phoneLinked} icon={<Smartphone size={16}/>} onCopy={() => handleCopy(d.phoneLinked, 'phone')} copied={copiedField === 'phone'} cs={cs} theme={theme} />}
+                {account.birthDate && <DetailRow label={tField('dob')} value={formatDate(account.birthDate)} icon={<Calendar size={16}/>} cs={cs} theme={theme} />}
+                {account.gender && <DetailRow label={tField('gender')} value={account.gender} icon={<User size={16}/>} cs={cs} theme={theme} />}
+                {d.phoneLinked && <DetailRow label={tField('recovery')} value={d.phoneLinked} icon={<Smartphone size={16}/>} onCopy={() => handleCopy(d.phoneLinked, 'phone')} copied={copiedField === 'phone'} cs={cs} theme={theme} />}
             </>
         );
     }
     if (account.category === "EDUCATION") {
         return (
             <>
-                {d.institution && <DetailRow label="INSTITUTION" value={d.institution} icon={<GraduationCap size={16}/>} cs={cs} theme={theme} />}
-                {d.course && <DetailRow label="COURSE_MODULE" value={d.course} icon={<BookOpen size={16}/>} cs={cs} theme={theme} />}
-                {d.level && <DetailRow label="CURRENT_LEVEL" value={d.level} icon={<Award size={16}/>} cs={cs} theme={theme} />}
-                {d.progress && <DetailRow label="PROGRESS_PCT" value={d.progress} icon={<Percent size={16}/>} cs={cs} theme={theme} />}
+                {d.institution && <DetailRow label={tField('inst')} value={d.institution} icon={<GraduationCap size={16}/>} cs={cs} theme={theme} />}
+                {d.course && <DetailRow label={tField('course')} value={d.course} icon={<BookOpen size={16}/>} cs={cs} theme={theme} />}
+                {d.level && <DetailRow label={tField('level')} value={d.level} icon={<Award size={16}/>} cs={cs} theme={theme} />}
+                {d.progress && <DetailRow label={tField('prog')} value={d.progress} icon={<Percent size={16}/>} cs={cs} theme={theme} />}
             </>
         );
     }
     if (account.category === "ECOMMERCE") {
         return (
             <>
-                {d.shop_name && <DetailRow label="SHOP_IDENTIFIER" value={d.shop_name} icon={<ShoppingBag size={16}/>} cs={cs} theme={theme} />}
-                {d.paylater_limit && <DetailRow label="PAYLATER_CAP" value={d.paylater_limit} icon={<CreditCard size={16}/>} cs={cs} theme={theme} />}
-                {d.phone_linked && <DetailRow label="LINKED_MOBILE" value={d.phone_linked} icon={<Smartphone size={16}/>} cs={cs} theme={theme} />}
+                {d.shop_name && <DetailRow label={tField('shop')} value={d.shop_name} icon={<ShoppingBag size={16}/>} cs={cs} theme={theme} />}
+                {d.paylater_limit && <DetailRow label={tField('limit')} value={d.paylater_limit} icon={<CreditCard size={16}/>} cs={cs} theme={theme} />}
+                {d.phone_linked && <DetailRow label={tField('phone')} value={d.phone_linked} icon={<Smartphone size={16}/>} cs={cs} theme={theme} />}
             </>
         );
     }
     if (account.category === "GAME") {
         return (
             <>
-                {d.ign && <DetailRow label="IGN_HANDLE" value={d.ign} icon={<User size={16}/>} onCopy={() => handleCopy(d.ign, 'ign')} copied={copiedField === 'ign'} cs={cs} theme={theme} />}
-                {d.server && <DetailRow label="SERVER_REGION" value={d.server} icon={<Globe size={16}/>} cs={cs} theme={theme} />}
-                {d.rank && <DetailRow label="COMPETITIVE_RANK" value={d.rank} icon={<Activity size={16}/>} cs={cs} theme={theme} />}
-                {d.level && <DetailRow label="LEVEL_IND" value={d.level} icon={<Activity size={16}/>} cs={cs} theme={theme} />}
+                {d.ign && <DetailRow label={tField('ign')} value={d.ign} icon={<User size={16}/>} onCopy={() => handleCopy(d.ign, 'ign')} copied={copiedField === 'ign'} cs={cs} theme={theme} />}
+                {d.server && <DetailRow label={tField('server')} value={d.server} icon={<Globe size={16}/>} cs={cs} theme={theme} />}
+                {d.rank && <DetailRow label={tField('rank')} value={d.rank} icon={<Activity size={16}/>} cs={cs} theme={theme} />}
+                {d.level && <DetailRow label={tField('gLevel')} value={d.level} icon={<Activity size={16}/>} cs={cs} theme={theme} />}
             </>
         );
     }
     if (account.category === "FINANCE") {
         return (
             <>
-                {d.accountNumber && <DetailRow label="ACC_NUMBER" value={d.accountNumber} icon={<CreditCard size={16}/>} onCopy={() => handleCopy(d.accountNumber, 'norek')} copied={copiedField === 'norek'} cs={cs} theme={theme} />}
-                {d.pinAtm && <DetailRow label="ATM_PIN_CODE" value={d.pinAtm} icon={<Hash size={16}/>} isSecret onCopy={() => handleCopy(d.pinAtm, 'pinAtm')} copied={copiedField === 'pinAtm'} cs={cs} theme={theme} />}
-                {d.pinApp && <DetailRow label="APP_ACCESS_PIN" value={d.pinApp} icon={<Smartphone size={16}/>} isSecret onCopy={() => handleCopy(d.pinApp, 'pinApp')} copied={copiedField === 'pinApp'} cs={cs} theme={theme} />}
+                {d.accountNumber && <DetailRow label={tField('norek')} value={d.accountNumber} icon={<CreditCard size={16}/>} onCopy={() => handleCopy(d.accountNumber, 'norek')} copied={copiedField === 'norek'} cs={cs} theme={theme} />}
+                {d.pinAtm && <DetailRow label={tField('pinAtm')} value={d.pinAtm} icon={<Hash size={16}/>} isSecret onCopy={() => handleCopy(d.pinAtm, 'pinAtm')} copied={copiedField === 'pinAtm'} cs={cs} theme={theme} />}
+                {d.pinApp && <DetailRow label={tField('pinApp')} value={d.pinApp} icon={<Smartphone size={16}/>} isSecret onCopy={() => handleCopy(d.pinApp, 'pinApp')} copied={copiedField === 'pinApp'} cs={cs} theme={theme} />}
             </>
         );
     }
@@ -575,14 +720,14 @@ function renderSpecificDetails(account: Account, copiedField: string | null, han
             <>
                 {d.profileUrl && (
                     <div className={cn("flex flex-col py-3 border-b last:border-0 hover:bg-black/5 dark:hover:bg-white/5 px-3 -mx-3 rounded-lg transition-colors group/row", theme === 'hacker' ? 'border-green-900/30 hover:bg-green-900/10 rounded-sm' : 'border-slate-200 dark:border-slate-800/50')}>
-                        <span className={cn("text-[9px] font-bold uppercase tracking-wider", cs.textSub)}>PROFILE_URL_LINK</span>
+                        <span className={cn("text-[9px] font-bold uppercase tracking-wider", cs.textSub)}>{tField('url')}</span>
                         <a href={d.profileUrl} target="_blank" rel="noopener noreferrer" className={cn("flex items-center gap-2 mt-1 font-mono break-all whitespace-normal text-sm font-medium transition-colors", cs.accent, "hover:opacity-70")}>
                             <ExternalLink size={14} className="shrink-0" />
                             {d.profileUrl}
                         </a>
                     </div>
                 )}
-                {d.phoneLinked && <DetailRow label="LINKED_MOBILE" value={d.phoneLinked} icon={<Smartphone size={16}/>} onCopy={() => handleCopy(d.phoneLinked, 'phone')} copied={copiedField === 'phone'} cs={cs} theme={theme} />}
+                {d.phoneLinked && <DetailRow label={tField('phone')} value={d.phoneLinked} icon={<Smartphone size={16}/>} onCopy={() => handleCopy(d.phoneLinked, 'phone')} copied={copiedField === 'phone'} cs={cs} theme={theme} />}
             </>
         );
     }

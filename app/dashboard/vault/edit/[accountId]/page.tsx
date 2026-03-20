@@ -14,7 +14,7 @@ import {
   Loader2, ShieldAlert, Calendar, User, Terminal, Cpu, ChevronRight, 
   Database, GraduationCap, ShoppingBag, MoreHorizontal, Plus, Trash2, 
   Settings2, X, Link as LinkIcon, KeyRound, Eye, EyeOff, AlertTriangle, 
-  Search, CheckCircle2, Clock
+  Search, CheckCircle2, Clock, Globe
 } from "lucide-react";
 
 // --- OPSI FORM ---
@@ -65,6 +65,21 @@ const OWNERS = [
   { label: "Adik", value: "Adik" },
 ];
 
+// --- HELPER ICONS ---
+const getCategoryIcon = (category: string) => {
+  switch (category) {
+    case "GAME": return <Gamepad2 size={24} className="text-purple-500 dark:text-purple-400" />;
+    case "FINANCE": return <Wallet size={24} className="text-emerald-500 dark:text-emerald-400" />;
+    case "SOCIAL": return <Share2 size={24} className="text-blue-500 dark:text-blue-400" />;
+    case "WORK": return <Briefcase size={24} className="text-amber-500 dark:text-amber-400" />;
+    case "UTILITY": return <Mail size={24} className="text-orange-500 dark:text-orange-400" />;
+    case "ENTERTAINMENT": return <Music size={24} className="text-pink-500 dark:text-pink-400" />;
+    case "EDUCATION": return <GraduationCap size={24} className="text-yellow-500 dark:text-yellow-400" />;
+    case "ECOMMERCE": return <ShoppingBag size={24} className="text-rose-500 dark:text-rose-400" />;
+    default: return <Database size={24} className="text-slate-400" />;
+  }
+};
+
 export default function EditAccountPage({ params }: { params: Promise<{ accountId: string }> }) {
   const { accountId } = use(params);
   const router = useRouter();
@@ -79,10 +94,12 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
   
   const [showMainPassword, setShowMainPassword] = useState(false);
   const [showSecretFields, setShowSecretFields] = useState<Record<string, boolean>>({});
+  const [iconError, setIconError] = useState(false);
 
   // State Utama
   const [formData, setFormData] = useState({
     serviceName: "",
+    websiteUrl: "", // Ditambahkan untuk fetch favicon
     category: "SOCIAL" as AccountCategory,
     identifier: "",
     password: "",
@@ -106,6 +123,25 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
   const [filteredParents, setFilteredParents] = useState<Account[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const suggestionRef = useRef<HTMLDivElement>(null);
+
+  // Auto-format websiteUrl untuk API Google
+  const cleanDomain = (url: string) => {
+    if (!url) return "";
+    try {
+      const parsed = new URL(url.includes('http') ? url : `https://${url}`);
+      return parsed.hostname;
+    } catch {
+      return url.split('/')[0];
+    }
+  };
+
+  const domainForIcon = cleanDomain(formData.websiteUrl);
+  const iconUrl = domainForIcon ? `https://s2.googleusercontent.com/s2/favicons?domain=${domainForIcon}&sz=128` : "";
+
+  // Reset iconError saat URL berubah
+  useEffect(() => {
+    setIconError(false);
+  }, [formData.websiteUrl]);
 
   // 1. Fetch Suggestions
   useEffect(() => {
@@ -140,6 +176,7 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
 
           setFormData({
             serviceName: data.serviceName || "",
+            websiteUrl: data.websiteUrl || "", // Muat URL dari DB
             category: category,
             identifier: data.identifier || "",
             password: data.password || "",
@@ -381,6 +418,8 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
       sec1Title: "Informasi Dasar",
       lblService: "Nama Layanan",
       phService: "Contoh: Netflix, BCA, Mobile Legends...",
+      lblUrl: "URL Website (Opsional)",
+      phUrl: "google.com, bca.co.id...",
       lblCategory: "Kategori Data",
       lblOwner: "Pemilik Akses",
       lblStatus: "Status Keamanan",
@@ -419,6 +458,8 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
       sec1Title: "Info Dasar",
       lblService: "Nama Aplikasi / Web",
       phService: "Misal: Netflix, Spotify, BCA...",
+      lblUrl: "Link Website (Opsional)",
+      phUrl: "tiktok.com, steam.com...",
       lblCategory: "Pilih Kategori",
       lblOwner: "Punya Siapa?",
       lblStatus: "Status Akun",
@@ -457,6 +498,8 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
       sec1Title: "CORE_METADATA",
       lblService: "SERVICE_NAME",
       phService: "Ex: Netflix, BCA, Mobile Legends...",
+      lblUrl: "TARGET_DOMAIN (OPTIONAL)",
+      phUrl: "netflix.com, aws.amazon.com...",
       lblCategory: "DATA_CATEGORY",
       lblOwner: "ACCESS_OWNER",
       lblStatus: "INTEGRITY_STATUS",
@@ -577,6 +620,31 @@ export default function EditAccountPage({ params }: { params: Promise<{ accountI
                     </h3>
                     
                     <div className="space-y-5">
+                        {/* URL Website & Dynamic Logo Preview (FIXED ALIGNMENT) */}
+                        <div className="space-y-2 group">
+                            <label className={cn("text-xs font-bold uppercase tracking-wider ml-1 transition-colors", cs.textSub, "group-focus-within:text-blue-500", theme === 'hacker' && 'group-focus-within:text-green-500', theme === 'casual' && 'group-focus-within:text-orange-500')}>
+                              {t.lblUrl}
+                            </label>
+                            <div className="flex gap-3 md:gap-4 items-stretch">
+                                <div className={cn("w-[48px] md:w-[52px] shrink-0 border flex items-center justify-center overflow-hidden transition-all shadow-sm", theme === 'hacker' ? 'bg-black border-green-900/50 rounded-sm' : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-xl', theme === 'casual' && 'rounded-2xl')}>
+                                    {iconUrl && !iconError ? (
+                                        <img 
+                                            src={iconUrl} 
+                                            alt="Logo" 
+                                            className="w-7 h-7 md:w-8 md:h-8 object-contain"
+                                            onError={() => setIconError(true)}
+                                        />
+                                    ) : (
+                                        getCategoryIcon(formData.category)
+                                    )}
+                                </div>
+                                <div className={cn("flex-1 flex items-center p-3 md:p-3.5 transition-all", cs.inputBg)}>
+                                    <Globe className={cn("shrink-0 mr-3 opacity-50", cs.textSub)} size={18} /> 
+                                    <input name="websiteUrl" value={formData.websiteUrl} onChange={handleInputChange} placeholder={t.phUrl} className={cs.inputPlain} />
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="space-y-2 group">
                             <label className={cn("text-xs font-bold uppercase tracking-wider ml-1 transition-colors", cs.textSub, "group-focus-within:text-blue-500", theme === 'hacker' && 'group-focus-within:text-green-500', theme === 'casual' && 'group-focus-within:text-orange-500')}>
                               {t.lblService}

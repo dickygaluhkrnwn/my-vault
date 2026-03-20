@@ -17,7 +17,6 @@ import {
 
 export default function SettingsPage() {
   const router = useRouter();
-  // Mengambil theme dan setTheme dari context
   const { theme, setTheme } = useTheme() as { theme: Theme, setTheme: (t: Theme) => void };
   const { user, isGuest } = useAuth();
   
@@ -80,18 +79,18 @@ export default function SettingsPage() {
   const handleUpdateProfile = async () => {
     if (!user) return;
     if (isGuest) {
-      showNotification("Sesi tamu tidak dapat menyimpan profil permanen.", "info");
+      showNotification(theme === 'hacker' ? "GUEST_OVERRIDE_DENIED" : "Sesi tamu tidak dapat menyimpan profil permanen.", "info");
       return;
     }
     try {
       await updateProfile(user, { displayName });
       setIsEditingProfile(false);
-      showNotification("Profil berhasil diperbarui!", "success");
+      showNotification(theme === 'hacker' ? "ALIAS_UPDATED" : "Profil berhasil diperbarui!", "success");
       
       await user.reload();
       setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
-      showNotification("ERROR: Gagal memperbarui profil", "error");
+      showNotification(theme === 'hacker' ? "ERROR: OVERRIDE_FAILED" : "ERROR: Gagal memperbarui profil", "error");
     }
   };
 
@@ -119,17 +118,15 @@ export default function SettingsPage() {
         }
       }
 
-      showNotification("Akun Google berhasil ditautkan!", "success");
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      showNotification(theme === 'hacker' ? "NODE_BOUND_SUCCESSFULLY" : "Akun Google berhasil ditautkan!", "success");
+      setTimeout(() => window.location.reload(), 1500);
 
     } catch (error: any) {
       console.error("Gagal menautkan Google:", error);
       if (error.code === 'auth/credential-already-in-use') {
-        showNotification("Akun Google ini sudah digunakan oleh pengguna lain.", "error");
+        showNotification(theme === 'hacker' ? "CREDENTIAL_COLLISION_DETECTED" : "Akun Google ini sudah digunakan oleh pengguna lain.", "error");
       } else {
-        showNotification("Gagal menautkan akun Google. Coba lagi.", "error");
+        showNotification(theme === 'hacker' ? "HANDSHAKE_FAILED" : "Gagal menautkan akun Google. Coba lagi.", "error");
       }
     } finally {
       setIsLinkingGoogle(false);
@@ -193,6 +190,133 @@ export default function SettingsPage() {
     }
   };
 
+  // --- DICTIONARY TEKS DINAMIS ---
+  const textDict = {
+    formal: {
+      title: "Pengaturan Sistem",
+      subtitle: "Kelola identitas dan preferensi keamanan",
+      guestWarningTitle: "Peringatan Sesi Tamu Aktif",
+      guestWarningDesc: "Data Sesi Tamu tidak akan hilang meskipun browser ditutup. Namun, jika Anda menggunakan mode Incognito, pindah perangkat, atau membersihkan Cache Browser, data Anda akan lenyap. Tautkan Akun Google di bawah untuk mencadangkannya secara permanen ke Cloud.",
+      identityTitle: "Protokol Identitas",
+      lblDisplayName: "Nama Tampilan",
+      lblEmail: "Email Terdaftar",
+      btnEdit: "UBAH",
+      btnCancel: "BATAL",
+      btnSave: "SIMPAN",
+      lblConnected: "Akun Tertaut",
+      googleDescLinked: "Autentikasi diaktifkan via Google",
+      googleDescUnlinked: "Tautkan untuk Login dengan Google",
+      btnLink: "TAUTKAN SEKARANG",
+      btnLinking: "MENAUTKAN...",
+      statusLinked: "TERTAUT",
+      dbTitle: "Metrik Database",
+      lblTotal: "Total Entri",
+      lblSize: "Estimasi Ukuran",
+      capStatus: "Kapasitas Server: Optimal",
+      btnExport: "EKSPOR JSON",
+      btnImport: "IMPOR DATA",
+      themeTitle: "Tampilan & Tema",
+      securityTitle: "Peringatan Keamanan",
+      authTitle: "Autentikasi 2FA",
+      dangerTitle: "Zona Berbahaya",
+      logoutTitle: "Keluar Sesi",
+      logoutDesc: "Akhiri sesi akses Anda saat ini dengan aman. Anda perlu masuk kembali untuk mengakses brankas.",
+      btnLogout: "KELUAR AKUN",
+      purgeTitle: "Hapus Brankas",
+      purgeDesc: "Hapus semua data secara permanen. Tindakan ini tidak dapat dibatalkan dan data tidak dapat dipulihkan.",
+      btnPurge: "HAPUS SEMUA DATA",
+      purgeModalTitle: "AKSI KRITIS",
+      purgeModalDesc1: "Anda akan memulai proses ",
+      purgeModalDesc2: ". Ini akan menghancurkan seluruh ",
+      purgeModalDesc3: " data secara permanen.",
+      purgeModalWarn: "LOG DATA: TIDAK ADA CADANGAN",
+      btnAbort: "BATAL",
+      btnExecutePurge: "EKSEKUSI PENGHAPUSAN"
+    },
+    casual: {
+      title: "Pengaturan",
+      subtitle: "Atur profil dan preferensi keamanan kamu di sini",
+      guestWarningTitle: "Kamu Sedang Pakai Mode Tamu",
+      guestWarningDesc: "Data kamu di mode tamu ini aman selama browser gak dihapus cachenya. Tapi kalau pindah HP atau pakai Incognito, data bisa hilang. Mending sambungin akun Google kamu di bawah biar data tersimpan di Cloud.",
+      identityTitle: "Profil Kamu",
+      lblDisplayName: "Nama Panggilan",
+      lblEmail: "Email Terdaftar",
+      btnEdit: "EDIT",
+      btnCancel: "GAK JADI",
+      btnSave: "SIMPAN",
+      lblConnected: "Sambungan Akun",
+      googleDescLinked: "Udah nyambung sama Google",
+      googleDescUnlinked: "Sambungin Google biar gampang login",
+      btnLink: "SAMBUNGIN SEKARANG",
+      btnLinking: "LOADING...",
+      statusLinked: "NYAMBUNG",
+      dbTitle: "Info Kapasitas",
+      lblTotal: "Total Akun",
+      lblSize: "Ukuran Data",
+      capStatus: "Kapasitas: Aman",
+      btnExport: "DOWNLOAD JSON",
+      btnImport: "UPLOAD DATA",
+      themeTitle: "Tampilan",
+      securityTitle: "Notif Keamanan",
+      authTitle: "Login 2 Langkah (2FA)",
+      dangerTitle: "Area Bahaya",
+      logoutTitle: "Keluar Akun",
+      logoutDesc: "Keluar dari sesi kamu yang sekarang. Nanti tinggal login lagi kalau mau buka brankas.",
+      btnLogout: "KELUAR",
+      purgeTitle: "Hapus Semua Data",
+      purgeDesc: "Hapus semua akun yang ada di brankas. Gak bisa di-undo alias hilang selamanya lho.",
+      btnPurge: "HAPUS SEMUANYA",
+      purgeModalTitle: "YAKIN MAU HAPUS?",
+      purgeModalDesc1: "Kamu mau ",
+      purgeModalDesc2: ". Ini bakal ngapus semua ",
+      purgeModalDesc3: " akun kamu selamanya.",
+      purgeModalWarn: "PERHATIAN: GAK ADA BACKUP!",
+      btnAbort: "GAK JADI",
+      btnExecutePurge: "YA, HAPUS"
+    },
+    hacker: {
+      title: "SYSTEM_CONFIGURATION",
+      subtitle: "PREFERENCES // SECURITY // IDENTITY",
+      guestWarningTitle: "ANONYMOUS_GUEST_SESSION_ACTIVE",
+      guestWarningDesc: "Local cache is volatile. Session data will be wiped upon cache clearance, incognito mode, or device switch. Bind a Google Account below to inject data into persistent cloud storage.",
+      identityTitle: "IDENTITY_PROTOCOL",
+      lblDisplayName: "ALIAS_HANDLE",
+      lblEmail: "REGISTERED_MAIL",
+      btnEdit: "OVERRIDE",
+      btnCancel: "ABORT",
+      btnSave: "COMMIT",
+      lblConnected: "LINKED_AUTH_NODES",
+      googleDescLinked: "Auth override enabled via Google",
+      googleDescUnlinked: "Establish Google Auth handshake",
+      btnLink: "INITIATE_HANDSHAKE",
+      btnLinking: "BINDING_NODE...",
+      statusLinked: "BOUND",
+      dbTitle: "DATABASE_METRICS",
+      lblTotal: "TOTAL_ENTRIES",
+      lblSize: "PAYLOAD_SIZE",
+      capStatus: "SERVER_LOAD: OPTIMAL",
+      btnExport: "DUMP_JSON",
+      btnImport: "INJECT_DATA",
+      themeTitle: "UI_OVERRIDE",
+      securityTitle: "THREAT_ALERTS",
+      authTitle: "MULTI_FACTOR_AUTH",
+      dangerTitle: "DANGER_ZONE",
+      logoutTitle: "TERMINATE_SESSION",
+      logoutDesc: "Safely kill current access token. Re-authentication will be required for vault access.",
+      btnLogout: "KILL_SESSION",
+      purgeTitle: "PURGE_DATABASE",
+      purgeDesc: "Execute complete data wipe. Action is irreversible. Data recovery will be impossible.",
+      btnPurge: "EXECUTE_PURGE",
+      purgeModalTitle: "CRITICAL_ACTION",
+      purgeModalDesc1: "You are about to initiate a ",
+      purgeModalDesc2: ". This will permanently destroy all ",
+      purgeModalDesc3: " records.",
+      purgeModalWarn: "LOG_DATA: NO_BACKUP_DETECTED",
+      btnAbort: "ABORT",
+      btnExecutePurge: "CONFIRM_PURGE"
+    }
+  };
+
   // --- PEMETAAN STYLE TEMA DINAMIS ---
   const styles = {
     formal: {
@@ -237,6 +361,7 @@ export default function SettingsPage() {
   };
 
   const cs = styles[theme];
+  const t = textDict[theme];
 
   if (loading) {
     return (
@@ -270,30 +395,30 @@ export default function SettingsPage() {
       {/* MODAL PURGE VAULT */}
       {showPurgeModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200 font-mono">
-            <div className="bg-[#050505] rounded-2xl border border-red-900/50 shadow-[0_0_50px_rgba(220,38,38,0.2)] max-w-md w-full p-6 space-y-5 relative overflow-hidden">
+            <div className={cn("rounded-2xl border max-w-md w-full p-6 space-y-5 relative overflow-hidden shadow-2xl", theme === 'hacker' ? 'bg-[#050505] border-red-900/50' : 'bg-white dark:bg-slate-900 border-red-200 dark:border-red-900/30')}>
                 <div className="absolute top-0 left-0 w-full h-1 bg-red-600 animate-pulse" />
                 <div className="flex items-center gap-3 text-red-500">
-                    <div className="p-2 bg-red-950/50 rounded-full border border-red-900"><AlertTriangle size={24} /></div>
-                    <h3 className="text-lg font-bold tracking-wider">CRITICAL_ACTION</h3>
+                    <div className={cn("p-2 rounded-full border", theme === 'hacker' ? 'bg-red-950/50 border-red-900' : 'bg-red-50 dark:bg-red-950/30 border-red-200')}><AlertTriangle size={24} /></div>
+                    <h3 className="text-lg font-bold tracking-wider uppercase">{t.purgeModalTitle}</h3>
                 </div>
-                <p className="text-slate-400 text-sm border-l-2 border-red-900/50 pl-3 leading-relaxed">
-                    You are about to initiate a <strong className="text-white">FULL_DATABASE_PURGE</strong>. 
-                    This will permanently destroy all {storageUsage.count} records.
-                    <br/><br/><span className="text-red-400 text-[10px] font-bold bg-red-950/30 px-2 py-1 rounded inline-block border border-red-900/30">LOG_DATA: NO_BACKUP_DETECTED</span>
+                <p className={cn("text-sm border-l-2 pl-3 leading-relaxed", theme === 'hacker' ? 'border-red-900/50 text-slate-400' : 'border-red-200 text-slate-600 dark:text-slate-400')}>
+                    {t.purgeModalDesc1} <strong className={theme === 'hacker' ? 'text-white' : 'text-slate-900 dark:text-white'}>FULL_DATABASE_PURGE</strong>{t.purgeModalDesc2}
+                    {storageUsage.count}{t.purgeModalDesc3}
+                    <br/><br/><span className={cn("text-[10px] font-bold px-2 py-1 rounded inline-block border", theme === 'hacker' ? 'bg-red-950/30 border-red-900/30 text-red-400' : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/30 text-red-600')}>{t.purgeModalWarn}</span>
                 </p>
                 <div className="flex gap-3 justify-end pt-2">
                     <button 
                         onClick={() => setShowPurgeModal(false)} 
-                        className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
+                        className={cn("px-4 py-2 text-xs font-bold transition-all", cs.btnOutline)}
                     >
-                        ABORT
+                        {t.btnAbort}
                     </button>
                     <button 
                         onClick={handlePurgeVault} 
                         disabled={purging}
                         className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-500 rounded-lg shadow-md flex items-center gap-2 transition-all"
                     >
-                        {purging ? <Loader2 size={14} className="animate-spin"/> : <Trash2 size={14} />} EXECUTE_PURGE
+                        {purging ? <Loader2 size={14} className="animate-spin"/> : <Trash2 size={14} />} {t.btnExecutePurge}
                     </button>
                 </div>
             </div>
@@ -307,10 +432,10 @@ export default function SettingsPage() {
         </div>
         <div>
           <h1 className={cn("text-xl font-bold tracking-tight", cs.textMain)}>
-            {theme === 'hacker' ? 'SYSTEM_CONFIGURATION' : 'Pengaturan Sistem'}
+            {t.title}
           </h1>
           <p className={cn("text-xs mt-0.5", cs.textSub)}>
-            {theme === 'hacker' ? 'PREFERENCES // SECURITY // IDENTITY' : 'Kelola identitas dan preferensi keamanan'}
+            {t.subtitle}
           </p>
         </div>
       </div>
@@ -322,9 +447,9 @@ export default function SettingsPage() {
                 <AlertTriangle size={24} />
             </div>
             <div className="flex-1">
-                <h3 className="font-bold text-sm tracking-wide mb-1 uppercase">Peringatan Sesi Tamu Aktif</h3>
+                <h3 className="font-bold text-sm tracking-wide mb-1 uppercase">{t.guestWarningTitle}</h3>
                 <p className="text-xs opacity-80 leading-relaxed max-w-3xl">
-                    Data Sesi Tamu tidak akan hilang meskipun browser ditutup. Namun, jika Anda menggunakan mode Incognito, pindah perangkat, atau <strong className="font-bold">membersihkan Cache Browser</strong>, data Anda akan lenyap. Tautkan Akun Google di bawah untuk mencadangkannya secara permanen ke Cloud.
+                    {t.guestWarningDesc}
                 </p>
             </div>
         </div>
@@ -359,21 +484,21 @@ export default function SettingsPage() {
         <section className={cn("p-6 lg:p-8 lg:col-span-8 flex flex-col h-full relative overflow-hidden", cs.panel, theme !== 'casual' && 'rounded-xl')}>
             <div className={cn("flex items-center justify-between border-b pb-4 mb-5", theme === 'hacker' ? 'border-green-900/30' : 'border-slate-200 dark:border-slate-800')}>
                 <h3 className={cn("text-sm font-bold flex items-center gap-2 uppercase tracking-wider", cs.accent)}>
-                    <User size={16} /> Identity Protocol
+                    <User size={16} /> {t.identityTitle}
                 </h3>
                 {!isEditingProfile && !isGuest && (
                     <button 
                         onClick={() => setIsEditingProfile(true)} 
                         className={cn("text-[10px] font-bold px-3 py-1.5 transition-colors flex items-center gap-1.5", cs.btnOutline)}
                     >
-                        <Edit2 size={12} /> EDIT
+                        <Edit2 size={12} /> {t.btnEdit}
                     </button>
                 )}
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
                 <div className="space-y-1.5">
-                    <label className={cn("text-xs font-bold uppercase tracking-wider ml-0.5", cs.textSub)}>Display Name</label>
+                    <label className={cn("text-xs font-bold uppercase tracking-wider ml-0.5", cs.textSub)}>{t.lblDisplayName}</label>
                     {isEditingProfile ? (
                         <input 
                             value={displayName} 
@@ -389,7 +514,7 @@ export default function SettingsPage() {
                     )}
                 </div>
                 <div className="space-y-1.5">
-                    <label className={cn("text-xs font-bold uppercase tracking-wider ml-0.5", cs.textSub)}>Registered Email</label>
+                    <label className={cn("text-xs font-bold uppercase tracking-wider ml-0.5", cs.textSub)}>{t.lblEmail}</label>
                     <div className={cn("p-2.5 text-sm font-medium opacity-70", cs.textMain)}>
                         {user?.email || (isGuest ? "Sesi Sementara (Guest)" : "Belum diatur")}
                     </div>
@@ -405,20 +530,20 @@ export default function SettingsPage() {
                         }}
                         className={cn("px-5 py-2 text-xs font-bold transition-all", cs.btnOutline)}
                     >
-                        BATAL
+                        {t.btnCancel}
                     </button>
                     <button 
                         onClick={handleUpdateProfile} 
                         className={cn("px-6 py-2 text-xs font-bold transition-all active:scale-95 flex items-center gap-2", cs.btnSave)}
                     >
-                        SIMPAN
+                        {t.btnSave}
                     </button>
                 </div>
             )}
 
             {/* Google Connection Item */}
             <div className={cn("mt-auto pt-5 border-t", theme === 'hacker' ? 'border-green-900/30' : 'border-slate-200 dark:border-slate-800')}>
-                <label className={cn("text-xs font-bold uppercase tracking-wider ml-1 mb-2 block", cs.textSub)}>Connected Accounts</label>
+                <label className={cn("text-xs font-bold uppercase tracking-wider ml-1 mb-2 block", cs.textSub)}>{t.lblConnected}</label>
                 <div className={cn("flex flex-col sm:flex-row sm:items-center justify-between gap-4 border p-4 lg:p-5 transition-colors", cs.input, theme !== 'casual' && 'rounded-xl', isGoogleLinked ? 'border-emerald-500/30' : '')}>
                     <div className="flex items-center gap-3">
                         <div className={cn("p-2 rounded-md", theme === 'hacker' ? 'bg-black' : 'bg-slate-100 dark:bg-slate-800')}>
@@ -431,12 +556,12 @@ export default function SettingsPage() {
                         </div>
                         <div>
                             <p className={cn("text-sm font-bold", cs.textMain)}>Google Account</p>
-                            <p className={cn("text-[10px]", cs.textSub)}>{isGoogleLinked ? "Autentikasi diaktifkan via Google" : "Tautkan untuk Login dengan Google"}</p>
+                            <p className={cn("text-[10px]", cs.textSub)}>{isGoogleLinked ? t.googleDescLinked : t.googleDescUnlinked}</p>
                         </div>
                     </div>
                     {isGoogleLinked ? (
                         <span className="text-[10px] font-bold text-emerald-500 flex items-center gap-1 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-md">
-                            <CheckCircle2 size={14}/> TERTAUT
+                            <CheckCircle2 size={14}/> {t.statusLinked}
                         </span>
                     ) : (
                         <button 
@@ -445,7 +570,7 @@ export default function SettingsPage() {
                             className={cn("px-4 py-2 text-[10px] font-bold transition-all flex items-center justify-center gap-2 border", cs.btnGoogle, isLinkingGoogle && 'opacity-50 cursor-not-allowed', isGuest && 'ring-2 ring-amber-500 ring-offset-2 ring-offset-current')}
                         >
                             {isLinkingGoogle ? <Loader2 size={14} className="animate-spin" /> : <LinkIcon size={14} />}
-                            {isLinkingGoogle ? "MENAUTKAN..." : "TAUTKAN SEKARANG"}
+                            {isLinkingGoogle ? t.btnLinking : t.btnLink}
                         </button>
                     )}
                 </div>
@@ -462,21 +587,21 @@ export default function SettingsPage() {
         <div className={cn("p-6 flex flex-col justify-between h-full lg:col-span-6", cs.panel, theme !== 'casual' && 'rounded-xl')}>
             <div className="space-y-4 mb-6">
                 <h4 className={cn("text-sm font-bold uppercase flex items-center gap-2 tracking-wider border-b pb-3", cs.textSub, theme === 'hacker' ? 'border-green-900/30' : 'border-slate-200 dark:border-slate-800')}>
-                    <HardDrive size={16} /> Database Metrics
+                    <HardDrive size={16} /> {t.dbTitle}
                 </h4>
                 <div className="space-y-4 font-mono text-sm">
                     <div className="flex justify-between items-center">
-                        <span className={cs.textSub}>Total Entries</span>
+                        <span className={cs.textSub}>{t.lblTotal}</span>
                         <span className={cn("font-bold", cs.accent)}>{storageUsage.count} Records</span>
                     </div>
                     <div className="flex justify-between items-center">
-                        <span className={cs.textSub}>Est. Size</span>
+                        <span className={cs.textSub}>{t.lblSize}</span>
                         <span className="text-purple-500 font-bold">{storageUsage.size}</span>
                     </div>
                     <div className={cn("w-full rounded-full h-1.5 mt-2", theme === 'hacker' ? 'bg-black border border-green-900' : 'bg-slate-200 dark:bg-slate-800')}>
                         <div className={cn("h-full rounded-full transition-all", cs.accentBg)} style={{ width: `${Math.max(5, (storageUsage.count / 1000) * 100)}%` }} />
                     </div>
-                    <p className={cn("text-[10px] text-right mt-1", cs.textSub)}>Server Capacity: Optimized</p>
+                    <p className={cn("text-[10px] text-right mt-1", cs.textSub)}>{t.capStatus}</p>
                 </div>
             </div>
             
@@ -487,11 +612,11 @@ export default function SettingsPage() {
                     className={cn("flex items-center justify-center gap-2 transition-all font-mono text-[10px] font-bold w-full h-full flex-1 py-3", cs.btnOutline)}
                 >
                     {exporting ? <Loader2 size={14} className={cn("animate-spin", cs.accent)} /> : <Download size={14} className={cs.textSub} />}
-                    EXPORT_JSON
+                    {t.btnExport}
                 </button>
                 <button className={cn("flex items-center justify-center gap-2 transition-all font-mono text-[10px] font-bold w-full h-full flex-1 py-3 opacity-50 cursor-not-allowed", cs.btnOutline)}>
                     <Upload size={14} className={cs.textSub} />
-                    IMPORT_DATA
+                    {t.btnImport}
                 </button>
             </div>
         </div>
@@ -500,7 +625,7 @@ export default function SettingsPage() {
         <section className={cn("p-6 flex flex-col justify-between gap-4 h-full lg:col-span-6", cs.panel, theme !== 'casual' && 'rounded-xl')}>
             <div className="space-y-4">
                 <h3 className={cn("text-sm font-bold uppercase tracking-wider border-b pb-3 flex items-center gap-2", cs.textSub, theme === 'hacker' ? 'border-green-900/30' : 'border-slate-200 dark:border-slate-800')}>
-                    <Palette size={16} /> Appearance & Theme
+                    <Palette size={16} /> {t.themeTitle}
                 </h3>
                 
                 <div className="grid grid-cols-3 gap-3 w-full">
@@ -508,19 +633,19 @@ export default function SettingsPage() {
                         { id: 'formal', color: 'bg-slate-800 dark:bg-slate-200' },
                         { id: 'hacker', color: 'bg-green-500' },
                         { id: 'casual', color: 'bg-gradient-to-tr from-orange-400 to-pink-500' }
-                    ] as const).map((t) => (
+                    ] as const).map((thm) => (
                         <button 
-                            key={t.id}
-                            onClick={() => setTheme(t.id)}
+                            key={thm.id}
+                            onClick={() => setTheme(thm.id)}
                             className={cn(
                                 "flex flex-col items-center gap-2 p-3 border transition-all rounded-lg active:scale-95",
-                                theme === t.id 
+                                theme === thm.id 
                                     ? (theme === 'hacker' ? 'border-green-500 bg-green-900/20 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.2)]' : theme === 'casual' ? 'border-orange-500 bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 shadow-sm' : 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 shadow-sm')
                                     : (theme === 'hacker' ? 'border-green-900/50 bg-black text-green-700 hover:border-green-500/50' : 'border-slate-200 dark:border-slate-800 text-slate-500 hover:border-slate-400 dark:hover:border-slate-600 bg-slate-50 dark:bg-slate-900/50')
                             )}
                         >
-                            <div className={cn("w-5 h-5 rounded-full shadow-sm", t.color)} />
-                            <span className="text-[10px] font-bold uppercase tracking-wider">{t.id}</span>
+                            <div className={cn("w-5 h-5 rounded-full shadow-sm", thm.color)} />
+                            <span className="text-[10px] font-bold uppercase tracking-wider">{thm.id}</span>
                         </button>
                     ))}
                 </div>
@@ -531,7 +656,7 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-3">
                         <div className={cn("p-2 rounded-md", theme === 'hacker' ? 'bg-black' : 'bg-slate-100 dark:bg-slate-800')}><Bell size={16} className={cs.textSub} /></div>
                         <div>
-                            <p className={cn("text-sm font-bold", cs.textMain)}>Security Alerts</p>
+                            <p className={cn("text-sm font-bold", cs.textMain)}>{t.securityTitle}</p>
                         </div>
                     </div>
                     <button 
@@ -546,7 +671,7 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-3">
                         <div className={cn("p-2 rounded-md", theme === 'hacker' ? 'bg-black' : 'bg-slate-100 dark:bg-slate-800')}><Lock size={16} className={cs.textSub} /></div>
                         <div>
-                            <p className={cn("text-sm font-bold", cs.textMain)}>2FA Auth</p>
+                            <p className={cn("text-sm font-bold", cs.textMain)}>{t.authTitle}</p>
                         </div>
                     </div>
                     <span className={cn("text-[10px] font-bold font-mono", cs.textSub)}>DISABLED</span>
@@ -558,27 +683,27 @@ export default function SettingsPage() {
       {/* DANGER ZONE - FULL WIDTH BOTTOM */}
       <section className={cn("p-6 md:p-8 mt-2", cs.dangerPanel)}>
           <h3 className="text-sm font-bold text-red-500 border-b border-red-900/20 pb-3 flex items-center gap-2 uppercase tracking-wider mb-6">
-              <AlertTriangle size={16} /> Danger Zone
+              <AlertTriangle size={16} /> {t.dangerTitle}
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex flex-col justify-between p-5 md:p-6 bg-red-500/5 dark:bg-red-950/20 border border-red-500/20 rounded-xl">
                 <div>
-                    <p className="text-base font-bold text-red-500">Log Out Session</p>
-                    <p className="text-xs text-red-500/70 mt-2 leading-relaxed max-w-sm">Akhiri sesi akses Anda saat ini dengan aman. Anda akan perlu masuk kembali untuk mengakses vault.</p>
+                    <p className="text-base font-bold text-red-500">{t.logoutTitle}</p>
+                    <p className="text-xs text-red-500/70 mt-2 leading-relaxed max-w-sm">{t.logoutDesc}</p>
                 </div>
                 <button onClick={handleLogout} className="mt-5 py-2.5 px-6 border border-red-500/30 hover:border-red-500 text-red-500 hover:bg-red-500/10 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 w-full sm:w-auto self-start">
-                    <LogOut size={14} /> KELUAR AKUN
+                    <LogOut size={14} /> {t.btnLogout}
                 </button>
             </div>
             
             <div className="flex flex-col justify-between p-5 md:p-6 bg-red-500/5 dark:bg-red-950/20 border border-red-500/20 rounded-xl">
                 <div>
-                    <p className="text-base font-bold text-red-500">Purge Vault</p>
-                    <p className="text-xs text-red-500/70 mt-2 leading-relaxed max-w-sm">Hapus semua data secara permanen. Tindakan ini tidak bisa dibatalkan dan data tidak dapat dipulihkan.</p>
+                    <p className="text-base font-bold text-red-500">{t.purgeTitle}</p>
+                    <p className="text-xs text-red-500/70 mt-2 leading-relaxed max-w-sm">{t.purgeDesc}</p>
                 </div>
                 <button onClick={() => setShowPurgeModal(true)} className="mt-5 py-2.5 px-6 bg-red-500/10 border border-red-500/30 hover:bg-red-600 hover:text-white text-red-500 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 w-full sm:w-auto self-start">
-                    <Trash2 size={14} /> DELETE ALL DATA
+                    <Trash2 size={14} /> {t.btnPurge}
                 </button>
             </div>
           </div>
