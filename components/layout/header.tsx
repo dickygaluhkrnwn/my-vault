@@ -3,7 +3,8 @@
 import React, { useEffect, useState, useRef } from "react";
 import { 
   Menu, Bell, Palette, DownloadCloud, Shield, Search, UserCircle, 
-  LogIn, Settings, Command, Plus, Database, Network, Radar, Key, LayoutDashboard 
+  LogIn, Settings, Command, Plus, Database, Network, Radar, Key, LayoutDashboard,
+  Info, LifeBuoy
 } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import { useAuth } from "@/components/auth-provider";
@@ -145,6 +146,8 @@ export function Header({ onOpenSidebar }: HeaderProps) {
     { id: 'cmd-4', title: 'Peta Jaringan', href: '/dashboard/connectivity', icon: Network, keywords: ['network', 'jaringan', 'koneksi', 'map', 'topology'] },
     { id: 'cmd-5', title: 'Lihat Semua Data', href: '/dashboard/vault', icon: Database, keywords: ['vault', 'data', 'database', 'akun', 'semua'] },
     { id: 'cmd-6', title: 'Ringkasan Dashboard', href: '/dashboard', icon: LayoutDashboard, keywords: ['dashboard', 'home', 'beranda', 'ringkasan'] },
+    { id: 'cmd-7', title: 'Pusat Bantuan (FAQ)', href: '/support', icon: LifeBuoy, keywords: ['bantuan', 'support', 'faq', 'tanya', 'tolong'] },
+    { id: 'cmd-8', title: 'Tentang Aplikasi', href: '/about', icon: Info, keywords: ['tentang', 'about', 'info', 'versi', 'privasi', 'lisensi'] },
   ];
 
   const searchLower = globalSearchQuery.toLowerCase();
@@ -409,14 +412,42 @@ export function Header({ onOpenSidebar }: HeaderProps) {
               <span className="flex-1 text-left">Ganti Tema ({theme})</span>
             </button>
 
+            <div className="h-px bg-slate-100 dark:bg-slate-800/50 my-1 mx-1" />
+
+            {/* NAVIGASI INFO & BANTUAN */}
+            <button 
+              onClick={() => {
+                setIsProfileMenuOpen(false);
+                router.push('/support');
+              }}
+              className={cn("flex items-center gap-3 px-3 py-2.5 text-sm transition-colors", currentStyle.menuItem)}
+            >
+              <LifeBuoy size={18} />
+              <span className="flex-1 text-left">Pusat Bantuan</span>
+            </button>
+
+            <button 
+              onClick={() => {
+                setIsProfileMenuOpen(false);
+                router.push('/about');
+              }}
+              className={cn("flex items-center gap-3 px-3 py-2.5 text-sm transition-colors", currentStyle.menuItem)}
+            >
+              <Info size={18} />
+              <span className="flex-1 text-left">Tentang Aplikasi</span>
+            </button>
+
             {installPrompt && (
-              <button 
-                onClick={handleInstallClick}
-                className={cn("flex items-center gap-3 px-3 py-2.5 text-sm transition-colors", currentStyle.menuItem)}
-              >
-                <DownloadCloud size={18} />
-                <span className="flex-1 text-left">Pasang Aplikasi PWA</span>
-              </button>
+              <>
+                <div className="h-px bg-slate-100 dark:bg-slate-800/50 my-1 mx-1" />
+                <button 
+                  onClick={handleInstallClick}
+                  className={cn("flex items-center gap-3 px-3 py-2.5 text-sm transition-colors", currentStyle.menuItem)}
+                >
+                  <DownloadCloud size={18} />
+                  <span className="flex-1 text-left">Pasang Aplikasi PWA</span>
+                </button>
+              </>
             )}
 
             {isGuest && (
